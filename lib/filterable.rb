@@ -2,37 +2,40 @@
 
 require 'time'
 require 'active_record'
-require 'zeitwerk'
 
 require_relative 'filterable/version'
-
-loader = Zeitwerk::Loader.for_gem
-loader.setup
+require_relative 'filterable/concern'
+require_relative 'filterable/attribute_normalization'
+require_relative 'filterable/datable'
+require_relative 'filterable/datable/after'
+require_relative 'filterable/datable/before'
+require_relative 'filterable/datable/range'
+require_relative 'filterable/datable/since'
+require_relative 'filterable/sortable'
+require_relative 'filterable/concerns/datable'
+require_relative 'filterable/concerns/sortable'
 
 # Declarative, whitelisted query filtering and ordering for ActiveRecord models.
 #
-# Include the building blocks on a model, declare the columns you want to expose,
-# and fold the registered filters over the relation from nested request params:
+# In a Rails application the {Railtie} auto-includes the building blocks into
+# every model, so a model only declares its columns:
 #
 #   class MovementDetail < ApplicationRecord
-#     include Filterable::Concern
-#     include Filterable::Concerns::Datable
-#     include Filterable::Concerns::Sortable
-#
 #     datable  :value_date, :booking_date
 #     sortable :value_date, :gross_amount_cents
 #   end
 #
-#   MovementDetail.filterable(filters: { value_date: { after: "2026-02-01" }, sort: "-value_date" })
+#   MovementDetail.filterable(filters: { value_date: { after: '2026-02-01' }, sort: '-value_date' })
+#
+# Outside Rails, include the pieces manually:
+#
+#   include Filterable::Concern
+#   include Filterable::Concerns::Datable
+#   include Filterable::Concerns::Sortable
 module Filterable
   class Error < StandardError; end
-
-  # Eager-load every file so loading errors surface at boot instead of on first use.
-  def self.eager_load!
-    @loader&.eager_load
-  end
 end
 
-# `loader` is a local of this file's top-level scope, invisible inside the reopened
-# module body — stash it on the module from out here so eager_load! can reach it.
-Filterable.instance_variable_set(:@loader, loader)
+# Loaded only inside a Rails app, where Rails::Railtie is defined. The require is
+# guarded so the gem stays usable as plain ActiveRecord outside Rails.
+require_relative 'filterable/railtie' if defined?(Rails::Railtie)

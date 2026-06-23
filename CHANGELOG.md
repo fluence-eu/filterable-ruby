@@ -16,5 +16,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   date filters.
 - `Filterable::Concerns::Sortable` — `sortable` DSL plus `+/-` ordering from
   `filters[sort]`.
+- `Filterable::Railtie` — auto-includes the engine into `ActiveRecord::Base` via
+  `on_load(:active_record)`, so Rails models need no explicit `include`.
+
+### Changed
+
+- Dropped the Zeitwerk dependency in favour of explicit `require_relative`s,
+  matching the other Fluence gems and keeping the guarded Railtie require clean.
 
 [Unreleased]: https://github.com/fluence-eu/filterable-ruby/commits/main
