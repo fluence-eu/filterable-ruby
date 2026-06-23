@@ -1,0 +1,25 @@
+# Bundler / build artifacts
+/.bundle/
+/pkg/
+/tmp/
+
+# Test & coverage output
+/coverage/
+/spec/reports/
+.rspec_status
+
+# YARD documentation
+/.yardoc
+/_yardoc/
+/doc/
+
+# A library must not commit its lockfile — it pins the app's resolution, not the gem's
+Gemfile.lock
+
+# IDE / editor
+.idea/
+.ruby-lsp/
+*.swp
+
+# macOS
+.DS_Store
