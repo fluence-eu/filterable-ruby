@@ -1,0 +1,14 @@
+name: Docs Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+jobs:
+  docs:
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-docs-deploy.yml@v1
+    permissions:
+      contents: read
+      pages: write
+      id-token: write

@@ -1,0 +1,11 @@
+name: RuboCop Measure (baseline)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  measure:
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-rubocop-measure.yml@v1
+    permissions:
+      contents: read

@@ -1,0 +1,23 @@
+name: Release
+
+on:
+  # Only fires on pushes that touch the version file — i.e. when a
+  # release PR is merged. Feature merges don't match, so the workflow
+  # never produces ghost "all jobs skipped" runs.
+  push:
+    branches: [main]
+    paths:
+      - lib/filterable/version.rb
+
+jobs:
+  release:
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-release.yml@v2
+    with:
+      gem_name: filterable
+    secrets:
+      # Forwarded so `gh release create` runs with the App's installation
+      # token. App-issued release events trigger downstream `publish.yml`
+      # — which `secrets.GITHUB_TOKEN` does not (GitHub anti-loop rule).
+      RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+    permissions:
+      contents: write

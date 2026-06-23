@@ -8,6 +8,12 @@ module Filterable
     module Range
       module_function
 
+      # Narrows the scope to rows within each declared attribute's inclusive +from+/+to+ range.
+      #
+      # @api private
+      # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+      # @param scope [ActiveRecord::Relation] the relation being filtered.
+      # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
         Filterable::Datable.columns(params, scope).reduce(scope) do |sub_scope, (column, bounds)|
           from = Filterable::Datable.parse(bounds[:from])

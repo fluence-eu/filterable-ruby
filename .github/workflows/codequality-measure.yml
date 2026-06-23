@@ -1,0 +1,11 @@
+name: Code Quality Measure (baseline)
+
+on:
+  push:
+    branches: [main]
+
+jobs:
+  measure:
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-codequality-measure.yml@v2
+    permissions:
+      contents: read

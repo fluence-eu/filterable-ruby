@@ -7,30 +7,30 @@ on:
 
   pull_request:
 
-permissions:
-  contents: read
-
 jobs:
   build:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+
     name: Ruby ${{ matrix.ruby }}
     strategy:
       fail-fast: false
       matrix:
+        # Latest stable Rails across supported Ruby versions, using the root
+        # Gemfile (no Rails pin, so bundler resolves the most recent release).
         ruby:
-          - '3.2'
-          - '3.3'
-          - '3.4'
           - '4.0'
+          - '3.4'
+          - '3.3'
+          - '3.2'
 
     steps:
       - uses: actions/checkout@v6
-        with:
-          persist-credentials: false
       - name: Set up Ruby
         uses: ruby/setup-ruby@v1
         with:
           ruby-version: ${{ matrix.ruby }}
           bundler-cache: true
-      - name: Run the default task (specs + rubocop)
-        run: SKIP_COVERAGE=true bundle exec rake
+      - name: Run specs
+        run: SKIP_COVERAGE=true bundle exec rake spec
