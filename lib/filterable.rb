@@ -33,6 +33,7 @@ require_relative 'filterable/concerns/sortable'
 #   include Filterable::Concerns::Datable
 #   include Filterable::Concerns::Sortable
 module Filterable
+  # Base error class for the gem.
   class Error < StandardError; end
 end
 

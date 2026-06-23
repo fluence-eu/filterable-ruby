@@ -16,10 +16,20 @@ module Filterable
       end
 
       class_methods do
+        # The declared datable attributes, mapping each public name to its DB column.
+        #
+        # @api private
+        # @return [ActiveSupport::HashWithIndifferentAccess] public name => DB column.
         def datable_attribute_names
           @datable_attribute_names ||= {}.with_indifferent_access
         end
 
+        # Declares one or more attributes as datable. A bare name maps onto its own
+        # column; a hash aliases a public name to a different column.
+        #
+        # @api public
+        # @param attribute_names [Array<Symbol, String, Hash>] the columns to expose.
+        # @return [self] so calls can be chained.
         def datable(*attribute_names)
           attribute_names.flatten.each do |attribute_name|
             datable_attribute_names.merge!(Filterable::AttributeNormalization.normalize(attribute_name))

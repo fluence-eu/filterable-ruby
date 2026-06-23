@@ -13,10 +13,20 @@ module Filterable
       end
 
       class_methods do
+        # The declared sortable attributes, mapping each public name to its DB column.
+        #
+        # @api private
+        # @return [ActiveSupport::HashWithIndifferentAccess] public name => DB column.
         def sortable_attribute_names
           @sortable_attribute_names ||= {}.with_indifferent_access
         end
 
+        # Declares one or more attributes as sortable. A bare name maps onto its own
+        # column; a hash aliases a public name to a different column.
+        #
+        # @api public
+        # @param attribute_names [Array<Symbol, String, Hash>] the columns to expose.
+        # @return [self] so calls can be chained.
         def sortable(*attribute_names)
           attribute_names.flatten.each do |attribute_name|
             sortable_attribute_names.merge!(Filterable::AttributeNormalization.normalize(attribute_name))

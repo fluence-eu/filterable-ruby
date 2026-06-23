@@ -4,10 +4,19 @@ require 'simplecov'
 if ENV['SKIP_COVERAGE']
   SimpleCov.at_exit {} # no-op: skip reporting entirely
 else
+  require 'undercover/simplecov_formatter'
+
   SimpleCov.start do
     add_filter '/spec/'
     add_filter '/lib/filterable/version.rb'
-    minimum_coverage 90
+    minimum_coverage 95
+    minimum_coverage_by_file 70
+    formatter SimpleCov::Formatter::MultiFormatter.new(
+      [
+        SimpleCov::Formatter::HTMLFormatter,
+        SimpleCov::Formatter::Undercover
+      ]
+    )
   end
 end
 
