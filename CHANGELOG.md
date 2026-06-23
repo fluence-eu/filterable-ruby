@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [0.2.0] - 2026-06-23
+
 ### Added
 
 - Initial extraction from the ledger-back codebase.
@@ -24,4 +26,5 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Dropped the Zeitwerk dependency in favour of explicit `require_relative`s,
   matching the other Fluence gems and keeping the guarded Railtie require clean.
 
-[Unreleased]: https://github.com/fluence-eu/filterable-ruby/commits/main
+[Unreleased]: https://github.com/fluence-eu/filterable-ruby/compare/v0.2.0...HEAD
+[0.2.0]: https://github.com/fluence-eu/filterable-ruby/releases/tag/v0.2.0
