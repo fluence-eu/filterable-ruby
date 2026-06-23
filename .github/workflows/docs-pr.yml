@@ -5,10 +5,12 @@ on:
 
 jobs:
   docs:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-docs-pr.yml@v1
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-docs-pr.yml@v5
     secrets:
       FLUENCE_CI_BOT_PRIVATE_KEY: ${{ secrets.FLUENCE_CI_BOT_PRIVATE_KEY }}
+      FLUENCE_RELEASE_BOT_PRIVATE_KEY: ${{ secrets.FLUENCE_RELEASE_BOT_PRIVATE_KEY }}
     permissions:
       contents: read
       pull-requests: write
       actions: read
+      packages: read

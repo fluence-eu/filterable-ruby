@@ -7,12 +7,18 @@ on:
 
   pull_request:
 
+permissions:
+  contents: read
+  # fluence-ci-tools lives on GitHub Packages — bundle install needs to read it.
+  packages: read
+
+env:
+  # Authenticate Bundler against the fluence-eu GitHub Packages registry.
+  BUNDLE_RUBYGEMS__PKG__GITHUB__COM: x-access-token:${{ secrets.GITHUB_TOKEN }}
+
 jobs:
   build:
     runs-on: ubuntu-latest
-    permissions:
-      contents: read
-
     name: Ruby ${{ matrix.ruby }}
     strategy:
       fail-fast: false

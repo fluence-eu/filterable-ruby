@@ -6,6 +6,7 @@ on:
 
 jobs:
   measure:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-rubocop-measure.yml@v1
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-rubocop-measure.yml@v5
     permissions:
       contents: read
+      packages: read

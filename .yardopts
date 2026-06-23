@@ -1,5 +1,6 @@
 --markup markdown
 --no-private
+--hide-api private
 --output-dir doc
 --readme README.md
 lib/**/*.rb

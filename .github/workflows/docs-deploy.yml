@@ -7,7 +7,7 @@ on:
 
 jobs:
   docs:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-docs-deploy.yml@v1
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-docs-deploy.yml@v5
     permissions:
       contents: read
       pages: write

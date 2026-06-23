@@ -3,26 +3,12 @@ name: Publish Gem
 on:
   release:
     types: [published]
-  # Manual fallback for republishing a tag — useful when the original
-  # release event was issued by GITHUB_TOKEN (which doesn't trigger
-  # downstream workflows), or to retry after a transient gem-push
-  # failure. Trigger via:
-  #   gh workflow run publish.yml -f tag=v0.2.0
-  workflow_dispatch:
-    inputs:
-      tag:
-        description: Tag to publish (e.g. v0.2.0). Must already have a corresponding GitHub Release with the gem asset attached.
-        required: true
-        type: string
 
 jobs:
   publish:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-publish.yml@v2
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-publish.yml@v5
     with:
       gem_name: filterable
-      # Empty for `release: published` (the reusable falls back to the
-      # event payload), populated for `workflow_dispatch`.
-      tag: ${{ inputs.tag }}
     permissions:
       contents: read
       packages: write
