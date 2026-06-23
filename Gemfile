@@ -10,20 +10,12 @@ gem 'rake', '~> 13.0'
 
 gem 'rspec', '~> 3.0'
 
-gem 'rubocop', '~> 1.21'
-
-# Code quality (advisory): reek = design smells, flog = complexity, flay = duplication.
-gem 'flay', '~> 2.14', require: false
-gem 'flog', '~> 4.9', require: false
-gem 'reek', '~> 6.5', require: false
-
-# Coverage: simplecov computes it, undercover flags uncovered diffs.
-gem 'simplecov', '~> 0.22.0', require: false
-gem 'undercover', '~> 0.8.5', require: false
-
-# Documentation coverage: yard (presence) + yardstick (quality threshold).
-gem 'yard', '~> 0.9', require: false
-gem 'yardstick', '~> 0.9', require: false
+# Curated dev/CI tooling (rubocop, reek, flog, flay, simplecov, undercover,
+# yard, yardstick, …) with the pins the fluence-eu/ci-workflows reusables
+# expect. Bump with `bundle update fluence-ci-tools`.
+source 'https://rubygems.pkg.github.com/fluence-eu' do
+  gem 'fluence-ci-tools', require: false
+end
 
 # Test harness only (not runtime deps): in-memory DB, ActionController::Parameters
 # for the duck-typed params path, and railties to exercise the Railtie auto-include.

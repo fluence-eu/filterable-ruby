@@ -14,12 +14,12 @@ on:
 
 jobs:
   prepare:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-prepare-release.yml@v1
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-prepare-release.yml@v5
     with:
-      gem_name: filterable
-      version_file: lib/filterable/version.rb
+      gem_specs: filterable
       bump: ${{ inputs.bump }}
     secrets:
-      RELEASE_APP_PRIVATE_KEY: ${{ secrets.RELEASE_APP_PRIVATE_KEY }}
+      FLUENCE_RELEASE_BOT_PRIVATE_KEY: ${{ secrets.FLUENCE_RELEASE_BOT_PRIVATE_KEY }}
     permissions:
       contents: read
+      packages: read
