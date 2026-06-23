@@ -15,10 +15,11 @@ group :development, :test do
   # Documentation coverage, like the other Fluence gems.
   gem 'yard', '~> 0.9', require: false
 
-  # Test harness only: an in-memory database to run the filters against, and
-  # ActionController::Parameters to prove the duck-typed params path. Neither is
-  # a runtime dependency of the gem.
+  # Test harness only: an in-memory database to run the filters against,
+  # ActionController::Parameters to prove the duck-typed params path, and
+  # railties to exercise the Railtie auto-include. None is a runtime dependency.
   gem 'actionpack', '>= 7.1'
+  gem 'railties', '>= 7.1'
   gem 'sqlite3', '>= 2.1'
 
   gem 'simplecov', require: false

@@ -11,15 +11,23 @@ else
   end
 end
 
+# Load Rails (defines Rails::Railtie) *before* requiring the gem so its guarded
+# `require_relative 'filterable/railtie'` fires — the suite exercises the real
+# Rails integration path, not just the manual includes.
+require 'rails'
 require 'filterable'
 require 'action_controller'
 
-# Surface any autoloading mistake at boot rather than on first use.
-Filterable.eager_load!
-
-# A throwaway in-memory database so the filters run against real SQL, with no
-# server to set up. The schema mirrors the columns the test model exposes.
+# An in-memory database so the filters run against real SQL, with no server to
+# set up. Referencing ActiveRecord::Base here also loads it, firing the
+# :active_record load hook.
 ActiveRecord::Base.establish_connection(adapter: 'sqlite3', database: ':memory:')
+
+# Run the Railtie's initializer exactly as Rails would at boot: it registers
+# `on_load(:active_record)`, and since ActiveRecord::Base is already loaded the
+# engine is mixed into it immediately. From here every model has `filterable`
+# and the datable/sortable DSL with no explicit `include`.
+Filterable::Railtie.instance.run_initializers
 
 ActiveRecord::Schema.verbose = false
 ActiveRecord::Schema.define do
@@ -31,13 +39,9 @@ ActiveRecord::Schema.define do
   end
 end
 
-# The model under test: declares value_date/booking_date as datable and
-# value_date/gross_amount_cents as sortable, just like the host application.
+# Note the absence of any `include`: the Railtie auto-included the engine into
+# ActiveRecord::Base, so the model only declares its whitelisted columns.
 class MovementDetail < ActiveRecord::Base
-  include Filterable::Concern
-  include Filterable::Concerns::Datable
-  include Filterable::Concerns::Sortable
-
   datable :value_date, :booking_date
   sortable :value_date, :gross_amount_cents
 end

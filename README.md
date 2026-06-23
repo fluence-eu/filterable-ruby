@@ -33,21 +33,19 @@ bundle install
 
 ## Usage
 
-Include the engine and the concerns you need, then declare your columns:
+In a Rails application a `Railtie` auto-includes the engine into every model, so
+a model just declares its whitelisted columns:
 
 ```ruby
 class MovementDetail < ApplicationRecord
-  include Filterable::Concern
-  include Filterable::Concerns::Datable
-  include Filterable::Concerns::Sortable
-
   datable  :value_date, :booking_date
   sortable :value_date, :gross_amount_cents
 end
 ```
 
-> **Include order matters.** `Filterable::Concern` provides `add_filter`, which
-> the `Datable`/`Sortable` concerns call at include time — so it must come first.
+`filterable` is then available on every model; one that declares nothing simply
+returns `all`. See [Rails integration](#rails-integration) for what the Railtie
+wires, and [Outside Rails](#outside-rails) to opt in manually.
 
 From a controller, hand the request params straight in:
 
@@ -122,6 +120,43 @@ end
 ```
 
 A filter returning `nil` leaves the scope untouched, so guard clauses are safe.
+
+---
+
+## Rails integration
+
+`Filterable::Railtie` registers a single initializer that hooks
+`ActiveSupport.on_load(:active_record)` and mixes the engine into
+`ActiveRecord::Base`:
+
+```ruby
+include Filterable::Concern
+include Filterable::Concerns::Datable
+include Filterable::Concerns::Sortable
+```
+
+So every model gains `filterable` and the `datable` / `sortable` DSL with no
+boilerplate. A model that declares no columns keeps an empty whitelist, so
+`filterable` is a harmless pass-through that returns `all`.
+
+## Outside Rails
+
+The railtie is loaded only when `Rails::Railtie` is defined. With plain
+ActiveRecord, include the pieces yourself:
+
+```ruby
+class MovementDetail < ActiveRecord::Base
+  include Filterable::Concern
+  include Filterable::Concerns::Datable
+  include Filterable::Concerns::Sortable
+
+  datable  :value_date
+  sortable :value_date
+end
+```
+
+> **Include order matters.** `Filterable::Concern` provides `add_filter`, which
+> the `Datable`/`Sortable` concerns call at include time — so it must come first.
 
 ---
 
