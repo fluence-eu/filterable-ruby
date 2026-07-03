@@ -3,6 +3,7 @@
 --hide-api private
 --output-dir doc
 --readme README.md
+--template-path yard-templates
 lib/**/*.rb
 -
 CHANGELOG.md
