@@ -74,6 +74,7 @@ class MovementDetail < ActiveRecord::Base
             attached_balance: { attachable: { account: :balance_cents } }
   togglable :priced
   scopable :cheaper_than
+  matchable :reference, matched_account: { account: :name }
 end
 
 RSpec.configure do |config|
