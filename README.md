@@ -217,19 +217,37 @@ an unknown type narrows nothing and is reported by the validator. The reverse,
 concrete direction (`Message` → `{ entry: :created_at }` through its
 `has_one`) is an ordinary path.
 
-#### ActiveStorage
+### Attachments (`Attachable`)
 
-The associations `has_one_attached` / `has_many_attached` generate are
-concrete from the owner's side, so they are ordinary paths — no polymorphic
-hop needed:
+ActiveStorage attachments have their own declaration. Each declared attachment
+accepts these nested keys under `filters[<name>]`:
+
+| Key                    | Meaning                                            |
+|------------------------|----------------------------------------------------|
+| `present`              | strict true or bare key → attached; explicit false (`'false'`, `'0'`) → unattached |
+| `type`                 | blob content type — scalar `=`, array `IN`         |
+| `min_size` / `max_size`| inclusive blob byte size bounds                    |
 
 ```ruby
 class Contract < ApplicationRecord
   has_one_attached :document
 
-  equatable document_type:  { document_blob: :content_type }
-  datable   document_since: { document_attachment: :created_at }
+  attachable :document
 end
+
+Contract.filterable(filters: { document: { present: true } })
+Contract.filterable(filters: { document: { type: %w[application/pdf image/png], max_size: 5_000_000 } })
+```
+
+Everything resolves through the associations `has_one_attached` /
+`has_many_attached` generate, so the gem still has no ActiveStorage
+dependency; a declared name without those associations narrows nothing, and
+the [declarations validator](#validating-declarations) reports it. Collections
+(`has_many_attached`) deduplicate automatically. For anything beyond these
+keys, the generated associations remain ordinary paths:
+
+```ruby
+datable document_since: { document_attachment: :created_at }
 ```
 
 ### Default filters

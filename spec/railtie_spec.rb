@@ -24,6 +24,7 @@ RSpec.describe Filterable::Railtie do
       expect(ActiveRecord::Base).to respond_to(:rangeable)
       expect(ActiveRecord::Base).to respond_to(:scopable)
       expect(ActiveRecord::Base).to respond_to(:togglable)
+      expect(ActiveRecord::Base).to respond_to(:attachable)
     end
 
     it 'leaves a model that declares nothing as a pass-through' do

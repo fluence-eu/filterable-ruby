@@ -60,18 +60,19 @@ class Contract < ActiveRecord::Base
   datable   document_since: { document_attachment: :created_at }
   equatable document_type: { document_blob: :content_type },
             annex_type: { annexes_blobs: :content_type }
+  attachable :document, annex: :annexes
 end
 
 RSpec.describe 'ActiveStorage integration' do
-  def blob(content_type)
+  def blob(content_type, byte_size = 1)
     ActiveStorage::Blob.create!(
       key: SecureRandom.base36(28), filename: 'file', content_type: content_type,
-      byte_size: 1, checksum: 'x', service_name: 'test'
+      byte_size: byte_size, checksum: 'x', service_name: 'test'
     )
   end
 
-  def attach(record, name, content_type)
-    ActiveStorage::Attachment.create!(name: name, record: record, blob: blob(content_type))
+  def attach(record, name, content_type, byte_size = 1)
+    ActiveStorage::Attachment.create!(name: name, record: record, blob: blob(content_type, byte_size))
   end
 
   let!(:pdf_contract)  { Contract.create!(label: 'pdf') }
@@ -112,5 +113,77 @@ RSpec.describe 'ActiveStorage integration' do
 
   it 'validates the declarations against the generated associations' do
     expect(Contract.filterable_declarations).to be_valid
+  end
+
+  describe 'attachable sugar' do
+    it 'keeps attached records on a strict true present key' do
+      result = Contract.filterable(filters: { document: { present: 'true' } })
+
+      expect(result).to contain_exactly(pdf_contract, png_contract)
+    end
+
+    it 'keeps attached records on a bare present key, nil or blank' do
+      ['', nil].each do |value|
+        result = Contract.filterable(filters: { document: { present: value } })
+
+        expect(result).to contain_exactly(pdf_contract, png_contract)
+      end
+    end
+
+    it 'keeps unattached records on an explicit false present key' do
+      result = Contract.filterable(filters: { document: { present: 'false' } })
+
+      expect(result).to contain_exactly(bare_contract)
+    end
+
+    it 'ignores an arbitrary present value' do
+      result = Contract.filterable(filters: { document: { present: 'garbage' } })
+
+      expect(result).to contain_exactly(pdf_contract, png_contract, bare_contract)
+    end
+
+    it 'filters by blob content type' do
+      result = Contract.filterable(filters: { document: { type: 'application/pdf' } })
+
+      expect(result).to contain_exactly(pdf_contract)
+    end
+
+    it 'filters by an array of blob content types' do
+      result = Contract.filterable(filters: { document: { type: %w[application/pdf image/png] } })
+
+      expect(result).to contain_exactly(pdf_contract, png_contract)
+    end
+
+    it 'applies inclusive byte size bounds' do
+      attach(pdf_contract, 'annexes', 'text/csv', 100)
+      attach(png_contract, 'annexes', 'text/csv', 5000)
+
+      result = Contract.filterable(filters: { annex: { min_size: 1000 } })
+      expect(result.map(&:id)).to eq([png_contract.id])
+
+      result = Contract.filterable(filters: { annex: { max_size: '999' } })
+      expect(result.map(&:id)).to eq([pdf_contract.id])
+    end
+
+    it 'combines present and type under the same name' do
+      result = Contract.filterable(filters: { document: { present: '1', type: 'application/pdf' } })
+
+      expect(result).to contain_exactly(pdf_contract)
+    end
+
+    it 'deduplicates records on presence through has_many_attached' do
+      attach(pdf_contract, 'annexes', 'text/csv')
+      attach(pdf_contract, 'annexes', 'text/csv')
+
+      result = Contract.filterable(filters: { annex: { present: '1' } })
+
+      expect(result.map(&:id)).to eq([pdf_contract.id])
+    end
+
+    it 'reports the accepted raw values in applied_filters' do
+      report = Contract.applied_filters(filters: { document: { present: '1', type: 'application/pdf', min_size: 'x' } })
+
+      expect(report[:document]).to eq('present' => '1', 'type' => 'application/pdf')
+    end
   end
 end

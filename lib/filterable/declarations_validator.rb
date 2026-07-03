@@ -20,6 +20,11 @@ module Filterable
     # is skipped.
     SCOPE_KINDS = %i[scopable togglable].freeze
 
+    # The attachment-backed declaration DSLs to check, each exposing
+    # +<kind>_attachment_names+ on the model. A kind the model does not respond
+    # to is skipped.
+    ATTACHMENT_KINDS = %i[attachable].freeze
+
     # Builds a validator over one model's declarations.
     #
     # @api public
@@ -43,7 +48,8 @@ module Filterable
     # @return [Array<String>] one message per broken declaration; empty when valid.
     def errors
       @errors ||= KINDS.flat_map { |kind| column_errors(kind) } +
-                  SCOPE_KINDS.flat_map { |kind| scope_errors(kind) }
+                  SCOPE_KINDS.flat_map { |kind| scope_errors(kind) } +
+                  ATTACHMENT_KINDS.flat_map { |kind| attachment_errors(kind) }
     end
 
     private
@@ -124,6 +130,23 @@ module Filterable
         next if !scope_name.is_a?(Hash) && @model.respond_to?(scope_name)
 
         "#{kind}: '#{public_name}' maps to unknown scope '#{scope_name}' on #{@model.name}"
+      end
+    end
+
+    # The error messages for one attachment-backed declaration DSL.
+    #
+    # @api private
+    # @param kind [Symbol] the declaration DSL to check.
+    # @return [Array<String>] one message per declaration of that kind whose
+    #   generated attachment associations do not exist.
+    def attachment_errors(kind)
+      reader = "#{kind}_attachment_names"
+      return [] unless @model.respond_to?(reader)
+
+      @model.public_send(reader).filter_map do |public_name, attachment|
+        next if @model.respond_to?(:reflect_on_attachment) && @model.reflect_on_attachment(attachment)
+
+        "#{kind}: '#{public_name}' maps to unknown attachment '#{attachment}' on #{@model.name}"
       end
     end
   end

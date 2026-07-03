@@ -828,6 +828,16 @@ RSpec.describe Filterable::Concern do
       )
     end
 
+    it 'reports an attachable declaration without the generated attachment associations' do
+      stub_const('NoAttach', Class.new(MovementDetail) { attachable :document })
+      validator = NoAttach.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "attachable: 'document' maps to unknown attachment 'document' on NoAttach"
+      )
+    end
+
     it 'is valid for association targets resolving to real columns' do
       expect(Account.filterable_declarations).to be_valid
     end
@@ -907,12 +917,13 @@ RSpec.describe Filterable::Concern do
         include Filterable::Concerns::Rangeable
         include Filterable::Concerns::Scopable
         include Filterable::Concerns::Togglable
+        include Filterable::Concerns::Attachable
       end
     end
 
     it 'maps a bare attribute onto its own column' do
       model.datable(:value_date).sortable(:value_date).equatable(:reference).rangeable(:gross_amount_cents)
-           .scopable(:cheaper_than).togglable(:priced)
+           .scopable(:cheaper_than).togglable(:priced).attachable(:document)
 
       expect(model.datable_attribute_names[:value_date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:value_date]).to eq(:value_date)
@@ -920,11 +931,13 @@ RSpec.describe Filterable::Concern do
       expect(model.rangeable_attribute_names[:gross_amount_cents]).to eq(:gross_amount_cents)
       expect(model.scopable_scope_names[:cheaper_than]).to eq(:cheaper_than)
       expect(model.togglable_scope_names[:priced]).to eq(:priced)
+      expect(model.attachable_attachment_names[:document]).to eq(:document)
     end
 
     it 'aliases a public name to a column through a hash' do
       model.datable(date: :value_date).sortable(amount: :gross_amount_cents).equatable(ref: :reference)
            .rangeable(amount: :gross_amount_cents).scopable(max_price: :cheaper_than).togglable(has_price: :priced)
+           .attachable(file: :document)
 
       expect(model.datable_attribute_names[:date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:amount]).to eq(:gross_amount_cents)
@@ -932,10 +945,12 @@ RSpec.describe Filterable::Concern do
       expect(model.rangeable_attribute_names[:amount]).to eq(:gross_amount_cents)
       expect(model.scopable_scope_names[:max_price]).to eq(:cheaper_than)
       expect(model.togglable_scope_names[:has_price]).to eq(:priced)
+      expect(model.attachable_attachment_names[:file]).to eq(:document)
     end
 
     it 'ignores an unsupported declaration' do
       model.datable(42).sortable(nil).equatable(3.14).rangeable(Object.new).scopable(42).togglable(nil)
+           .attachable(1.5)
 
       expect(model.datable_attribute_names).to be_empty
       expect(model.sortable_attribute_names).to be_empty
@@ -943,6 +958,42 @@ RSpec.describe Filterable::Concern do
       expect(model.rangeable_attribute_names).to be_empty
       expect(model.scopable_scope_names).to be_empty
       expect(model.togglable_scope_names).to be_empty
+      expect(model.attachable_attachment_names).to be_empty
+    end
+  end
+
+  describe 'attachable without ActiveStorage' do
+    it 'ignores a declared attachment when the model has no generated associations' do
+      model = Class.new(MovementDetail) { attachable :document }
+      result = nil
+      expect { result = model.filterable(filters: { document: { present: 'true' } }) }.not_to raise_error
+      expect(result.count).to eq(3)
+    end
+
+    it 'ignores a scalar where the attachment keys are expected instead of raising' do
+      model = Class.new(MovementDetail) { attachable :document }
+
+      expect { model.filterable(filters: { document: 'x' }) }.not_to raise_error
+    end
+
+    it 'stays out of applied_filters' do
+      model = Class.new(MovementDetail) { attachable :document }
+
+      expect(model.applied_filters(filters: { document: { present: 'true' } })).to be_empty
+    end
+
+    it 'does not mistake an ordinary association named like an attachment' do
+      stub_const('FakeAttach', Class.new(MovementDetail) do
+        belongs_to :document_attachment, class_name: 'Account', optional: true
+        attachable :document
+      end)
+
+      result = nil
+      expect { result = FakeAttach.filterable(filters: { document: { present: 'true' } }) }.not_to raise_error
+      expect(result.count).to eq(3)
+      expect(FakeAttach.filterable_declarations.errors).to contain_exactly(
+        "attachable: 'document' maps to unknown attachment 'document' on FakeAttach"
+      )
     end
   end
 
