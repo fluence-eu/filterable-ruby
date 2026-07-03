@@ -225,7 +225,7 @@ accepts these nested keys under `filters[<name>]`:
 | Key                    | Meaning                                            |
 |------------------------|----------------------------------------------------|
 | `present`              | strict true or bare key → attached; explicit false (`'false'`, `'0'`) → unattached |
-| `type`                 | blob content type — scalar `=`, array `IN`         |
+| `type`                 | blob content type — scalar `=`, array `IN`, or the `image` shortcut |
 | `min_size` / `max_size`| inclusive blob byte size bounds                    |
 
 ```ruby
@@ -237,7 +237,14 @@ end
 
 Contract.filterable(filters: { document: { present: true } })
 Contract.filterable(filters: { document: { type: %w[application/pdf image/png], max_size: 5_000_000 } })
+Contract.filterable(filters: { document: { type: 'image' } })
 ```
+
+The `image` shortcut expands at query time against
+`ActiveStorage.variable_content_types` + `web_image_content_types` (a real
+content type always carries a slash, so the name is unambiguous), and composes
+inside arrays next to literal types. An unknown literal stays a plain equality
+that matches nothing; an unknown symbol narrows nothing.
 
 Everything resolves through the associations `has_one_attached` /
 `has_many_attached` generate, so the gem still has no ActiveStorage
