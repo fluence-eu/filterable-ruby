@@ -169,6 +169,36 @@ scopable  max_price: :cheaper_than
 # filters[date][after] / filters[sort]=-amount / filters[ref] / filters[amount][min] / filters[max_price]
 ```
 
+### Association targets
+
+`datable`, `equatable` and `rangeable` declarations may target a column through
+associations, with an explicit nested hash — the path is declared, never
+inferred from names:
+
+```ruby
+class MovementDetail < ApplicationRecord
+  belongs_to :account
+
+  equatable account_name:    { account: :name }
+  rangeable account_balance: { account: :balance_cents }
+  equatable bank_name:       { account: { bank: :name } }   # nested path
+end
+
+MovementDetail.filterable(filters: { account_name: 'Main' })
+# INNER JOIN accounts ... WHERE accounts.name = 'Main'
+```
+
+Filtering joins the declared path — rows without the association drop out —
+and merges the condition on the target model; a collection anywhere in the
+path adds `DISTINCT`. An unresolvable target (unknown or polymorphic
+association, ambiguous multi-key hash) narrows nothing, and the
+[declarations validator](#validating-declarations) reports it. `sortable`
+does not accept association targets.
+
+For `delegated_type`, declare from the concrete side (`Message` →
+`{ entry: :created_at }` through its `has_one`); filtering the polymorphic
+direction goes through a `scopable`.
+
 ### Default filters
 
 A model can declare default filter params, applied whenever the request does
