@@ -553,6 +553,66 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe 'call context' do
+    let!(:mine) { MovementDetail.create!(reference: 'MINE') }
+
+    it 'hands the context to a block filter declaring a third parameter' do
+      model = Class.new(MovementDetail) do
+        add_filter do |filters_params, scope, context|
+          scope.where(reference: context[:ref]) if filters_params[:mine]
+        end
+      end
+
+      result = model.filterable({ filters: { mine: '1' } }, ref: 'MINE')
+      expect(result.map(&:id)).to eq([mine.id])
+    end
+
+    it 'hands the context to an object filter with an optional third parameter' do
+      custom = Module.new do
+        def self.call(filters_params, scope, context = {})
+          scope.where(reference: context[:ref]) if filters_params[:mine]
+        end
+      end
+      model = Class.new(MovementDetail)
+      model.add_filter(custom)
+
+      result = model.filterable({ filters: { mine: '1' } }, ref: 'MINE')
+      expect(result.map(&:id)).to eq([mine.id])
+    end
+
+    it 'keeps two-parameter filters untouched by the context' do
+      result = MovementDetail.filterable({ filters: { value_date: { after: '2026-02-01' } } }, user_id: 42)
+
+      expect(result).to contain_exactly(february, march)
+    end
+
+    it 'defaults the context to an empty hash' do
+      model = Class.new(MovementDetail) do
+        add_filter do |filters_params, scope, context|
+          scope.where(reference: context.fetch(:ref, 'NONE')) if filters_params[:mine]
+        end
+      end
+
+      expect(model.filterable(filters: { mine: '1' })).to be_empty
+    end
+
+    it 'hands the context to a context-aware applied' do
+      custom = Module.new do
+        def self.call(filters_params, scope, context = {})
+          scope.where(reference: context[:ref]) if filters_params[:mine]
+        end
+
+        def self.applied(filters_params, _scope, context = {})
+          filters_params[:mine] ? { mine: context[:ref] } : {}
+        end
+      end
+      model = Class.new(MovementDetail)
+      model.add_filter(custom)
+
+      expect(model.applied_filters({ filters: { mine: '1' } }, ref: 'MINE')[:mine]).to eq('MINE')
+    end
+  end
+
   describe '.applied_filters' do
     it 'returns an empty report when no filters are given' do
       expect(MovementDetail.applied_filters({})).to be_empty
