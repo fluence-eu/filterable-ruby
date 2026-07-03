@@ -19,12 +19,36 @@ module Filterable
     def call(params, scope)
       return unless params[:sort].is_a?(String)
 
-      params[:sort].split(',').reduce(scope) do |sorted, term|
-        sign, name = split_direction(term.strip)
-        column = scope.sortable_attribute_names[name]
-        next sorted unless column
-
+      terms(params, scope).reduce(scope) do |sorted, (sign, column, _term)|
         sorted.order(column => DIRECTIONS[sign])
+      end
+    end
+
+    # The sort terms {call} would honor, rejoined as sent.
+    #
+    # @api private
+    # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+    # @param scope [ActiveRecord::Relation] the relation being ordered.
+    # @return [Hash] +{ sort: '<accepted terms>' }+, or empty when none is declared.
+    def applied(params, scope)
+      accepted = terms(params, scope).map { |_sign, _column, term| term }
+      accepted.empty? ? {} : { sort: accepted.join(',') }
+    end
+
+    # The declared sort terms, each resolved to its direction sign and DB column.
+    #
+    # @api private
+    # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+    # @param scope [ActiveRecord::Relation] the relation being ordered.
+    # @return [Array<Array(String, Object, String)>] sign, DB column and raw term.
+    def terms(params, scope)
+      return [] unless params[:sort].is_a?(String)
+
+      params[:sort].split(',').filter_map do |raw|
+        term = raw.strip
+        sign, name = split_direction(term)
+        column = scope.sortable_attribute_names[name]
+        [sign, column, term] if column
       end
     end
 

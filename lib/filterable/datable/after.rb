@@ -14,11 +14,22 @@ module Filterable
       # @param scope [ActiveRecord::Relation] the relation being filtered.
       # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
-        Filterable::Datable.columns(params, scope).reduce(scope) do |sub_scope, (column, bounds)|
-          after = Filterable::Datable.parse(bounds[:after])
-          next sub_scope unless after
+        entries = Filterable::Datable.accepted(params, scope, :after)
+        entries.reduce(scope) do |sub_scope, (_name, column, _bounds, parsed)|
+          sub_scope.where(scope.arel_table[column].gt(parsed[:after]))
+        end
+      end
 
-          sub_scope.where(scope.arel_table[column].gt(after))
+      # The bounds {call} would apply, keyed by public name, with their raw values.
+      #
+      # @api private
+      # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+      # @param scope [ActiveRecord::Relation] the relation being filtered.
+      # @return [Hash{Symbol, String => Hash}] public name => accepted +after+ bound.
+      def applied(params, scope)
+        entries = Filterable::Datable.accepted(params, scope, :after)
+        entries.each_with_object({}) do |(name, _column, bounds, _parsed), report|
+          report[name] = bounds.slice(:after)
         end
       end
     end

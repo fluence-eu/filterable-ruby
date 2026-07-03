@@ -23,20 +23,38 @@ module Filterable
       end
     end
 
-    # Whitelist the params to the declared rangeable attributes and resolve each
-    # one to its DB column, so a filter only ever touches columns the model opted
-    # in. An attribute whose value is not a hash of bounds is dropped, so a
-    # malformed shape narrows nothing instead of raising.
+    # Whitelist the params to the declared rangeable attributes, keeping their
+    # public names. An attribute whose value is not a hash of bounds is dropped,
+    # so a malformed shape narrows nothing instead of raising.
     #
     # @api private
     # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
     # @param scope [ActiveRecord::Relation] the relation being filtered.
-    # @return [Hash{Symbol, String => Hash}] db_column => raw bounds for that attribute.
-    def columns(params, scope)
-      declared = scope.rangeable_attribute_names
-      sliced = params.slice(*declared.keys)
+    # @return [Hash{Symbol, String => Hash}] public name => raw bounds for that attribute.
+    def bounds(params, scope)
+      sliced = params.slice(*scope.rangeable_attribute_names.keys)
       sliced = sliced.to_unsafe_h if sliced.respond_to?(:to_unsafe_h)
-      sliced.select { |_name, bounds| bounds.is_a?(Hash) }.transform_keys { |name| declared[name] }
+      sliced.select { |_name, value| value.is_a?(Hash) }
+    end
+
+    # The entries of {bounds} whose given keys all parse, each public name
+    # resolved to its DB column — the single place deciding whether a bound
+    # applies, so a filter's +call+ and +applied+ cannot drift.
+    #
+    # @api private
+    # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+    # @param scope [ActiveRecord::Relation] the relation being filtered.
+    # @param keys [Array<Symbol>] the bound keys the filter reads, all required.
+    # @return [Array<Array(Object, Object, Hash, Hash)>] public name, DB column,
+    #   raw bounds and parsed bounds for each accepted attribute.
+    def accepted(params, scope, *keys)
+      declared = scope.rangeable_attribute_names
+      bounds(params, scope).filter_map do |name, bounds_hash|
+        parsed = keys.index_with { |key| parse(bounds_hash[key]) }
+        next if parsed.value?(nil)
+
+        [name, declared[name], bounds_hash, parsed]
+      end
     end
   end
 end

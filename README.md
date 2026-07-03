@@ -159,6 +159,27 @@ end
 
 A filter returning `nil` leaves the scope untouched, so guard clauses are safe.
 
+### Applied filters introspection
+
+Since an unknown or malformed filter is a silent no-op, `applied_filters` is how
+a caller tells the difference: it reports, from the same params, which filters
+`filterable` would actually apply — echo it in a response, or diff it against
+`params[:filters]` to surface what was ignored:
+
+```ruby
+MovementDetail.applied_filters(
+  filters: { value_date: { after: '2026-02-01', before: 'oops' },
+             reference: 'INV-1', sort: '-value_date,+unknown' }
+)
+# => { 'value_date' => { 'after' => '2026-02-01' },
+#      'reference'  => 'INV-1',
+#      'sort'       => '-value_date' }
+```
+
+It never runs SQL and never mutates anything. A custom filter object joins the
+report by responding to `applied(filters_params, scope)` next to `call`; block
+filters cannot describe themselves and are simply absent.
+
 ### Validating declarations
 
 At runtime a typo'd declaration is a silent no-op by design. To catch it in CI

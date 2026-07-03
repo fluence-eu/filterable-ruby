@@ -51,6 +51,26 @@ module Filterable
         filters.reduce(all) { |scope, filter| filter.call(params[:filters], scope) || scope }
       end
 
+      # Reports which filters {filterable} would actually apply from the same
+      # params, mapping each public name to the accepted value. Since an unknown
+      # or malformed filter is a silent no-op by design, this is how a caller
+      # tells the difference — echo the active filters in a response, or diff
+      # against +params[:filters]+ to surface what was ignored. Filters report
+      # through an optional +applied(filters_params, scope)+; a block filter
+      # cannot describe itself and is skipped.
+      #
+      # @api public
+      # @param params [Hash, ActionController::Parameters] request params, read at +params[:filters]+.
+      # @return [ActiveSupport::HashWithIndifferentAccess] public name => accepted value.
+      def applied_filters(params = {})
+        params = params.with_indifferent_access if params.is_a?(Hash)
+        report = {}.with_indifferent_access
+        return report unless indifferent?(params) && indifferent?(params[:filters])
+
+        filters.select { |filter| filter.respond_to?(:applied) }
+               .reduce(report) { |acc, filter| acc.deep_merge(filter.applied(params[:filters], all)) }
+      end
+
       # A validator checking every declaration against the model's columns, meant
       # for specs — at runtime a typo'd declaration stays a silent no-op by design.
       #

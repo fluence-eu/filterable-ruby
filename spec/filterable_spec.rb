@@ -264,6 +264,128 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe '.applied_filters' do
+    it 'returns an empty report when no filters are given' do
+      expect(MovementDetail.applied_filters({})).to be_empty
+    end
+
+    it 'returns an empty report when the params carry no :filters key' do
+      expect(MovementDetail.applied_filters(page: 2)).to be_empty
+    end
+
+    it 'reports an accepted date bound with its raw value' do
+      report = MovementDetail.applied_filters(filters: { value_date: { after: '2026-02-01' } })
+
+      expect(report).to eq('value_date' => { 'after' => '2026-02-01' })
+    end
+
+    it 'merges several accepted bounds under the same attribute' do
+      report = MovementDetail.applied_filters(
+        filters: { value_date: { after: '2026-01-15', before: '2026-03-01' } }
+      )
+
+      expect(report[:value_date]).to eq('after' => '2026-01-15', 'before' => '2026-03-01')
+    end
+
+    it 'reports an accepted since bound with its raw value' do
+      report = MovementDetail.applied_filters(filters: { value_date: { since: '2026-02-10' } })
+
+      expect(report[:value_date]).to eq('since' => '2026-02-10')
+    end
+
+    it 'omits an unparseable date bound' do
+      report = MovementDetail.applied_filters(filters: { value_date: { since: 'not-a-date' } })
+
+      expect(report).to be_empty
+    end
+
+    it 'omits a range missing one of its two bounds' do
+      report = MovementDetail.applied_filters(filters: { value_date: { from: '2026-02-01' } })
+
+      expect(report).to be_empty
+    end
+
+    it 'reports a full range with both raw bounds' do
+      report = MovementDetail.applied_filters(filters: { value_date: { from: '2026-02-01', to: '2026-03-01' } })
+
+      expect(report[:value_date]).to eq('from' => '2026-02-01', 'to' => '2026-03-01')
+    end
+
+    it 'reports an equality filter with its normalized value' do
+      report = MovementDetail.applied_filters(filters: { reference: ['INV-1', '', nil] })
+
+      expect(report[:reference]).to eq(['INV-1'])
+    end
+
+    it 'omits a blank equality value' do
+      expect(MovementDetail.applied_filters(filters: { reference: '' })).to be_empty
+    end
+
+    it 'reports an accepted numeric bound with its raw value' do
+      report = MovementDetail.applied_filters(filters: { gross_amount_cents: { min: '100' } })
+
+      expect(report[:gross_amount_cents]).to eq('min' => '100')
+    end
+
+    it 'omits an unparseable numeric bound' do
+      expect(MovementDetail.applied_filters(filters: { gross_amount_cents: { min: 'cheap' } })).to be_empty
+    end
+
+    it 'reports only the accepted sort terms' do
+      report = MovementDetail.applied_filters(filters: { sort: '-value_date,+reference' })
+
+      expect(report[:sort]).to eq('-value_date')
+    end
+
+    it 'omits the sort when no term is declared sortable' do
+      expect(MovementDetail.applied_filters(filters: { sort: '-reference' })).to be_empty
+    end
+
+    it 'reports every kind at once with indifferent access' do
+      report = MovementDetail.applied_filters(
+        filters: { value_date: { after: '2026-02-01' }, reference: 'INV-1',
+                   gross_amount_cents: { max: 250 }, sort: '-value_date' }
+      )
+
+      expect(report['value_date']).to eq('after' => '2026-02-01')
+      expect(report[:reference]).to eq('INV-1')
+      expect(report[:gross_amount_cents]).to eq('max' => 250)
+      expect(report[:sort]).to eq('-value_date')
+    end
+
+    it 'accepts ActionController::Parameters from a controller' do
+      params = ActionController::Parameters.new(filters: { reference: 'INV-1' })
+
+      expect(MovementDetail.applied_filters(params)[:reference]).to eq('INV-1')
+    end
+
+    it 'skips block filters, which cannot describe what they applied' do
+      model = Class.new(MovementDetail) do
+        add_filter do |filters_params, scope|
+          scope.where(value_date: ..Date.parse(filters_params[:until])) if filters_params[:until]
+        end
+      end
+
+      expect(model.applied_filters(filters: { until: '2026-01-31' })).to be_empty
+    end
+
+    it 'includes a custom filter object that implements applied' do
+      custom = Module.new do
+        def self.call(filters_params, scope)
+          scope.where(value_date: ..Date.parse(filters_params[:until])) if filters_params[:until]
+        end
+
+        def self.applied(filters_params, _scope)
+          filters_params[:until] ? { until: filters_params[:until] } : {}
+        end
+      end
+      model = Class.new(MovementDetail)
+      model.add_filter(custom)
+
+      expect(model.applied_filters(filters: { until: '2026-01-31' })).to eq('until' => '2026-01-31')
+    end
+  end
+
   describe '.filterable_declarations' do
     it 'is valid when every declaration maps onto a real column' do
       validator = MovementDetail.filterable_declarations
