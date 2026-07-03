@@ -182,6 +182,41 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe '.filterable_declarations' do
+    it 'is valid when every declaration maps onto a real column' do
+      validator = MovementDetail.filterable_declarations
+
+      expect(validator).to be_valid
+      expect(validator.errors).to be_empty
+    end
+
+    it 'reports a datable declaration pointing to an unknown column' do
+      stub_const('BrokenDetail', Class.new(MovementDetail) { datable :value_dat })
+      validator = BrokenDetail.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "datable: 'value_dat' maps to unknown column 'value_dat' on BrokenDetail"
+      )
+    end
+
+    it 'reports a sortable declaration pointing to an unknown column through its alias' do
+      stub_const('BrokenSort', Class.new(MovementDetail) { sortable amount: :gross_amount })
+      validator = BrokenSort.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "sortable: 'amount' maps to unknown column 'gross_amount' on BrokenSort"
+      )
+    end
+
+    it 'is valid for a model without any declaration DSL' do
+      model = Class.new { include Filterable::Concern }
+
+      expect(model.filterable_declarations).to be_valid
+    end
+  end
+
   describe 'declarations' do
     let(:model) do
       Class.new do
