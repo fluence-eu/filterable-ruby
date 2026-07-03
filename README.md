@@ -2,12 +2,12 @@
 
 Declarative, **whitelisted** query filtering and ordering for ActiveRecord.
 
-A model declares which columns are *datable* and *sortable*. `filterable(params)`
-then folds a chain of small, composable filters over the relation, reading from
-nested request params and touching **only** the columns the model explicitly
-exposed. An unknown attribute, a malformed date, or an undeclared sort term
-narrows nothing — it never raises and never leaks an arbitrary column into the
-query.
+A model declares which columns are *datable*, *sortable* and *equatable*.
+`filterable(params)` then folds a chain of small, composable filters over the
+relation, reading from nested request params and touching **only** the columns
+the model explicitly exposed. An unknown attribute, a malformed date, or an
+undeclared sort term narrows nothing — it never raises and never leaks an
+arbitrary column into the query.
 
 Requires **Ruby ≥ 3.2** and **ActiveRecord ≥ 7.1**. No dependency on ActionPack:
 `ActionController::Parameters` are supported by duck-typing (`to_unsafe_h`).
@@ -38,8 +38,9 @@ a model just declares its whitelisted columns:
 
 ```ruby
 class MovementDetail < ApplicationRecord
-  datable  :value_date, :booking_date
-  sortable :value_date, :gross_amount_cents
+  datable   :value_date, :booking_date
+  sortable  :value_date, :gross_amount_cents
+  equatable :reference
 end
 ```
 
@@ -82,6 +83,20 @@ MovementDetail.filterable(
 Unparseable values are dropped silently (the filter is a no-op), so a bad query
 param can never raise.
 
+### Equality filters (`Equatable`)
+
+Each declared equatable attribute reads `filters[<attribute>]` directly: a
+scalar compares with `=`, an array of scalars with `IN`:
+
+```ruby
+MovementDetail.filterable(filters: { reference: 'INV-1' })
+MovementDetail.filterable(filters: { reference: %w[INV-1 REF-2] })
+```
+
+Blank values and non-scalar values (e.g. a hash injected through the query
+string) are dropped silently, so an empty form field or a malformed param
+narrows nothing.
+
 ### Ordering (`Sortable`)
 
 `filters[sort]` is a comma-separated list of declared attributes, each optionally
@@ -95,13 +110,14 @@ Undeclared attributes are ignored.
 
 ### Public names vs. DB columns
 
-Both DSLs accept a hash to expose a public name that differs from the column:
+All the DSLs accept a hash to expose a public name that differs from the column:
 
 ```ruby
-datable  date:   :value_date
-sortable amount: :gross_amount_cents
+datable   date:   :value_date
+sortable  amount: :gross_amount_cents
+equatable ref:    :reference
 
-# filters[date][after] / filters[sort]=-amount
+# filters[date][after] / filters[sort]=-amount / filters[ref]
 ```
 
 ### Custom filters
@@ -132,11 +148,12 @@ A filter returning `nil` leaves the scope untouched, so guard clauses are safe.
 ```ruby
 include Filterable::Concern
 include Filterable::Concerns::Datable
+include Filterable::Concerns::Equatable
 include Filterable::Concerns::Sortable
 ```
 
-So every model gains `filterable` and the `datable` / `sortable` DSL with no
-boilerplate. A model that declares no columns keeps an empty whitelist, so
+So every model gains `filterable` and the `datable` / `sortable` / `equatable`
+DSL with no boilerplate. A model that declares no columns keeps an empty whitelist, so
 `filterable` is a harmless pass-through that returns `all`.
 
 ## Outside Rails
@@ -148,15 +165,18 @@ ActiveRecord, include the pieces yourself:
 class MovementDetail < ActiveRecord::Base
   include Filterable::Concern
   include Filterable::Concerns::Datable
+  include Filterable::Concerns::Equatable
   include Filterable::Concerns::Sortable
 
-  datable  :value_date
-  sortable :value_date
+  datable   :value_date
+  sortable  :value_date
+  equatable :reference
 end
 ```
 
 > **Include order matters.** `Filterable::Concern` provides `add_filter`, which
-> the `Datable`/`Sortable` concerns call at include time — so it must come first.
+> the `Datable`/`Equatable`/`Sortable` concerns call at include time — so it must
+> come first.
 
 ---
 
@@ -164,11 +184,12 @@ end
 
 - `Filterable::Concern` keeps a per-class list of filters (cloned down the
   inheritance chain) and `filterable` reduces the relation through them.
-- `Filterable::Concerns::Datable` / `Sortable` are thin `ActiveSupport::Concern`
-  mixins: they register the concrete filters and add the `datable` / `sortable`
-  declaration DSL on top of the engine.
-- The concrete date filters live under `Filterable::Datable::{After,Before,Range,Since}`
-  and the ordering filter is `Filterable::Sortable`.
+- `Filterable::Concerns::Datable` / `Equatable` / `Sortable` are thin
+  `ActiveSupport::Concern` mixins: they register the concrete filters and add
+  the `datable` / `equatable` / `sortable` declaration DSL on top of the engine.
+- The concrete date filters live under `Filterable::Datable::{After,Before,Range,Since}`,
+  the equality filter is `Filterable::Equatable` and the ordering filter is
+  `Filterable::Sortable`.
 
 ---
 

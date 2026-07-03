@@ -106,6 +106,70 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe 'equatable' do
+    let!(:invoice) { MovementDetail.create!(reference: 'INV-1', gross_amount_cents: 100) }
+    let!(:refund)  { MovementDetail.create!(reference: 'REF-2', gross_amount_cents: 250) }
+
+    it 'keeps records equal to a scalar value' do
+      result = MovementDetail.filterable(filters: { reference: 'INV-1' })
+      expect(result).to contain_exactly(invoice)
+    end
+
+    it 'keeps records matching any value of an array' do
+      result = MovementDetail.filterable(filters: { reference: %w[INV-1 REF-2] })
+      expect(result).to contain_exactly(invoice, refund)
+    end
+
+    it 'keeps records equal to a numeric value' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: 250 })
+      expect(result).to contain_exactly(refund)
+    end
+
+    it 'ignores attributes that are not declared equatable' do
+      result = MovementDetail.filterable(filters: { id: invoice.id })
+      expect(result).to contain_exactly(january, february, march, invoice, refund)
+    end
+
+    it 'ignores a blank value instead of matching the empty string' do
+      result = MovementDetail.filterable(filters: { reference: '' })
+      expect(result).to contain_exactly(january, february, march, invoice, refund)
+    end
+
+    it 'ignores a non-scalar value instead of raising' do
+      result = nil
+      expect { result = MovementDetail.filterable(filters: { reference: { evil: 1 } }) }
+        .not_to raise_error
+      expect(result).to contain_exactly(january, february, march, invoice, refund)
+    end
+
+    it 'drops blank and non-scalar entries from an array value' do
+      result = MovementDetail.filterable(filters: { reference: ['INV-1', '', nil, %w[nested], { evil: 1 }] })
+      expect(result).to contain_exactly(invoice)
+    end
+
+    it 'ignores an array of only blank values' do
+      result = MovementDetail.filterable(filters: { reference: ['', nil] })
+      expect(result).to contain_exactly(january, february, march, invoice, refund)
+    end
+
+    it 'resolves a public name onto its aliased column' do
+      model = Class.new(MovementDetail) { equatable ref: :reference }
+
+      expect(model.filterable(filters: { ref: 'INV-1' }).map(&:id)).to eq([invoice.id])
+    end
+
+    it 'inherits the equatable declarations in a subclass' do
+      result = Class.new(MovementDetail).filterable(filters: { reference: 'INV-1' })
+
+      expect(result.map(&:id)).to eq([invoice.id])
+    end
+
+    it 'accepts ActionController::Parameters from a controller' do
+      params = ActionController::Parameters.new(filters: { reference: 'INV-1' })
+      expect(MovementDetail.filterable(params).map(&:id)).to eq([invoice.id])
+    end
+  end
+
   describe '.add_filter' do
     it 'folds a block filter over the relation like any filter object' do
       model = Class.new(MovementDetail) do
@@ -124,28 +188,39 @@ RSpec.describe Filterable::Concern do
         include Filterable::Concern
         include Filterable::Concerns::Datable
         include Filterable::Concerns::Sortable
+        include Filterable::Concerns::Equatable
       end
     end
 
     it 'maps a bare attribute onto its own column' do
-      model.datable(:value_date).sortable(:value_date)
+      model.datable(:value_date).sortable(:value_date).equatable(:reference)
 
       expect(model.datable_attribute_names[:value_date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:value_date]).to eq(:value_date)
+      expect(model.equatable_attribute_names[:reference]).to eq(:reference)
     end
 
     it 'aliases a public name to a column through a hash' do
-      model.datable(date: :value_date).sortable(amount: :gross_amount_cents)
+      model.datable(date: :value_date).sortable(amount: :gross_amount_cents).equatable(ref: :reference)
 
       expect(model.datable_attribute_names[:date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:amount]).to eq(:gross_amount_cents)
+      expect(model.equatable_attribute_names[:ref]).to eq(:reference)
     end
 
     it 'ignores an unsupported declaration' do
-      model.datable(42).sortable(nil)
+      model.datable(42).sortable(nil).equatable(3.14)
 
       expect(model.datable_attribute_names).to be_empty
       expect(model.sortable_attribute_names).to be_empty
+      expect(model.equatable_attribute_names).to be_empty
+    end
+  end
+
+  describe Filterable::Equatable, '.normalize' do
+    it 'passes booleans through for JSON body params' do
+      expect(described_class.normalize(true)).to be(true)
+      expect(described_class.normalize(false)).to be(false)
     end
   end
 

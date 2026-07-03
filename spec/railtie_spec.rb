@@ -17,9 +17,10 @@ RSpec.describe Filterable::Railtie do
       expect(ActiveRecord::Base).to respond_to(:filterable)
     end
 
-    it 'exposes the datable and sortable declaration DSL on every model' do
+    it 'exposes the datable, sortable and equatable declaration DSL on every model' do
       expect(ActiveRecord::Base).to respond_to(:datable)
       expect(ActiveRecord::Base).to respond_to(:sortable)
+      expect(ActiveRecord::Base).to respond_to(:equatable)
     end
 
     it 'leaves a model that declares nothing as a pass-through' do
