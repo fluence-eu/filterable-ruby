@@ -42,7 +42,7 @@ module Filterable
     # @return [Array<Array(Object, Object)>] public name and normalized value.
     def accepted(params, scope)
       values(params, scope).filter_map do |name, raw|
-        value = normalize(raw)
+        value = Filterable::ValueNormalization.normalize(raw)
         [name, value] unless value.nil?
       end
     end
@@ -57,24 +57,6 @@ module Filterable
     def values(params, scope)
       sliced = params.slice(*scope.equatable_attribute_names.keys)
       sliced.respond_to?(:to_unsafe_h) ? sliced.to_unsafe_h : sliced
-    end
-
-    # Coerce a raw filter value into a scalar or an array of scalars, or nil when
-    # nothing usable remains, so a blank or malformed value narrows nothing.
-    #
-    # @api private
-    # @param value [Object] the raw value from the params.
-    # @return [String, Numeric, true, false, Array, nil] the usable value, or nil.
-    def normalize(value)
-      case value
-      when Array
-        scalars = value.filter_map { |element| normalize(element) unless element.is_a?(Array) }
-        scalars.empty? ? nil : scalars
-      when String
-        value.presence
-      when Numeric, true, false
-        value
-      end
     end
   end
 end

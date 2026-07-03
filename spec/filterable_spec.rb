@@ -471,7 +471,7 @@ RSpec.describe Filterable::Concern do
     end
   end
 
-  describe Filterable::Equatable, '.normalize' do
+  describe Filterable::ValueNormalization, '.normalize' do
     it 'passes booleans through for JSON body params' do
       expect(described_class.normalize(true)).to be(true)
       expect(described_class.normalize(false)).to be(false)
