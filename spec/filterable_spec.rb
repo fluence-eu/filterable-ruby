@@ -550,6 +550,101 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe '.default_filters' do
+    let(:model) { Class.new(MovementDetail) }
+
+    it 'applies a default sort when the params carry nothing' do
+      model.default_filters(sort: '-value_date')
+
+      expect(model.filterable({}).map(&:id)).to eq([march.id, february.id, january.id])
+    end
+
+    it 'applies a default filter value when the key is absent' do
+      model.default_filters(value_date: { after: '2026-01-15' })
+
+      expect(model.filterable({}).map(&:id)).to contain_exactly(february.id, march.id)
+    end
+
+    it 'lets a request value override its default' do
+      model.default_filters(sort: '-value_date')
+
+      result = model.filterable(filters: { sort: '+value_date' })
+      expect(result.map(&:id)).to eq([january.id, february.id, march.id])
+    end
+
+    it 'suppresses the default when the key is present, even blank' do
+      model.default_filters(value_date: { after: '2026-01-15' })
+
+      result = model.filterable(filters: { value_date: '' })
+      expect(result.map(&:id)).to contain_exactly(january.id, february.id, march.id)
+    end
+
+    it 'combines a default with requested filters on other keys' do
+      model.default_filters(sort: '-value_date')
+
+      result = model.filterable(filters: { value_date: { after: '2026-01-15' } })
+      expect(result.map(&:id)).to eq([march.id, february.id])
+    end
+
+    it 'evaluates a proc default at each call' do
+      bound = '2026-03-01'
+      model.default_filters(value_date: -> { { after: bound } })
+
+      expect(model.filterable({}).map(&:id)).to contain_exactly(march.id)
+      bound = '2026-01-15'
+      expect(model.filterable({}).map(&:id)).to contain_exactly(february.id, march.id)
+    end
+
+    it 'treats a proc returning nil as no default' do
+      model.default_filters(sort: -> {})
+
+      expect(model.filterable({}).map(&:id)).to contain_exactly(january.id, february.id, march.id)
+      expect(model.applied_filters({})).to be_empty
+    end
+
+    it 'keeps a default on an undeclared name a silent no-op' do
+      model.default_filters(bogus: 'x')
+
+      result = nil
+      expect { result = model.filterable({}) }.not_to raise_error
+      expect(result.map(&:id)).to contain_exactly(january.id, february.id, march.id)
+    end
+
+    it 'applies defaults when the filters params are unusable' do
+      model.default_filters(value_date: { after: '2026-01-15' })
+
+      expect(model.filterable(filters: 'garbage').map(&:id)).to contain_exactly(february.id, march.id)
+    end
+
+    it 'reports the effective defaults in applied_filters' do
+      model.default_filters(sort: '-value_date')
+
+      expect(model.applied_filters({})[:sort]).to eq('-value_date')
+    end
+
+    it 'merges ActionController::Parameters over the defaults' do
+      model.default_filters(sort: '-value_date')
+      params = ActionController::Parameters.new(filters: { sort: '+value_date' })
+
+      expect(model.filterable(params).map(&:id)).to eq([january.id, february.id, march.id])
+    end
+
+    it 'inherits the defaults in a subclass without leaking additions to the parent' do
+      model.default_filters(sort: '-value_date')
+      subclass = Class.new(model)
+      subclass.default_filters(value_date: { after: '2026-01-15' })
+
+      expect(subclass.filterable({}).map(&:id)).to eq([march.id, february.id])
+      expect(model.default_filter_params).not_to have_key(:value_date)
+    end
+
+    it 'ignores a non-hash declaration' do
+      model.default_filters(42)
+
+      expect(model.default_filter_params).to be_empty
+    end
+  end
+
   describe '.filterable_declarations' do
     it 'is valid when every declaration maps onto a real column' do
       validator = MovementDetail.filterable_declarations

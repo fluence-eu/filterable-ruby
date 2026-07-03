@@ -37,18 +37,47 @@ module Filterable
         self
       end
 
+      # The default filter params declared on this class, cloned from the
+      # superclass so a subclass starts with its parent's defaults and can
+      # append its own.
+      #
+      # @api private
+      # @return [ActiveSupport::HashWithIndifferentAccess] public name => default value.
+      def default_filter_params
+        @default_filter_params ||=
+          if superclass.respond_to?(:default_filter_params)
+            superclass.default_filter_params.clone
+          else
+            {}.with_indifferent_access
+          end
+      end
+
+      # Declares default filter params, used whenever the request carries no
+      # value for their key — a present key, even blank, suppresses its default.
+      # A Proc value is evaluated lazily at each call, and one returning nil
+      # withdraws its default. Defaults go through the same whitelisted fold as
+      # request params, so a default on an undeclared name narrows nothing.
+      #
+      # @api public
+      # @param defaults [Hash] public name => default value, or a Proc returning it.
+      # @return [self] so calls can be chained.
+      def default_filters(defaults)
+        default_filter_params.merge!(defaults) if defaults.is_a?(Hash)
+        self
+      end
+
       # Folds every registered filter over the relation, narrowing it from the
-      # nested +filters+ params. Returns +all+ untouched when the params carry no
-      # usable +filters+ key.
+      # nested +filters+ params merged over the declared defaults. Returns +all+
+      # untouched when neither carries anything usable.
       #
       # @api public
       # @param params [Hash, ActionController::Parameters] request params, read at +params[:filters]+.
       # @return [ActiveRecord::Relation] the filtered relation.
       def filterable(params = {})
-        params = params.with_indifferent_access if params.is_a?(Hash)
-        return all unless indifferent?(params) && indifferent?(params[:filters])
+        filters_params = effective_filters(params)
+        return all if filters_params.empty?
 
-        filters.reduce(all) { |scope, filter| filter.call(params[:filters], scope) || scope }
+        filters.reduce(all) { |scope, filter| filter.call(filters_params, scope) || scope }
       end
 
       # Reports which filters {filterable} would actually apply from the same
@@ -63,12 +92,12 @@ module Filterable
       # @param params [Hash, ActionController::Parameters] request params, read at +params[:filters]+.
       # @return [ActiveSupport::HashWithIndifferentAccess] public name => accepted value.
       def applied_filters(params = {})
-        params = params.with_indifferent_access if params.is_a?(Hash)
+        filters_params = effective_filters(params)
         report = {}.with_indifferent_access
-        return report unless indifferent?(params) && indifferent?(params[:filters])
+        return report if filters_params.empty?
 
         filters.select { |filter| filter.respond_to?(:applied) }
-               .reduce(report) { |acc, filter| acc.deep_merge(filter.applied(params[:filters], all)) }
+               .reduce(report) { |acc, filter| acc.deep_merge(filter.applied(filters_params, all)) }
       end
 
       # A validator checking every declaration against the model's columns, meant
@@ -81,6 +110,32 @@ module Filterable
       end
 
       private
+
+      # The request filters merged over the evaluated defaults — the single
+      # params shape handed to every filter by {filterable} and
+      # {applied_filters}, so the two cannot drift. A key present in the
+      # request, even blank, wins over its default.
+      #
+      # @api private
+      # @param params [Hash, ActionController::Parameters] request params, read at +params[:filters]+.
+      # @return [ActiveSupport::HashWithIndifferentAccess] the effective +filters+ params.
+      def effective_filters(params)
+        params = params.with_indifferent_access if params.is_a?(Hash)
+        requested = indifferent?(params) && indifferent?(params[:filters]) ? params[:filters] : {}
+        requested = requested.to_unsafe_h if requested.respond_to?(:to_unsafe_h)
+        evaluated_defaults.merge(requested)
+      end
+
+      # The declared defaults with every Proc evaluated, nil results withdrawn.
+      #
+      # @api private
+      # @return [ActiveSupport::HashWithIndifferentAccess] public name => default value.
+      def evaluated_defaults
+        default_filter_params.each_with_object({}.with_indifferent_access) do |(name, value), defaults|
+          resolved = value.respond_to?(:call) ? value.call : value
+          defaults[name] = resolved unless resolved.nil?
+        end
+      end
 
       # Whether the value carries indifferent string/symbol access, i.e. an
       # ActionController::Parameters (duck-typed) or a HashWithIndifferentAccess.
