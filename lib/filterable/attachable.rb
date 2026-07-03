@@ -123,7 +123,7 @@ module Filterable
       return sub_scope.where.missing(association) if value == :missing
 
       attached = sub_scope.where.associated(association)
-      collection = sub_scope.klass.reflect_on_attachment(attachment).macro == :has_many_attached
+      collection = attachment_reflection(sub_scope, attachment).macro == :has_many_attached
       collection ? attached.distinct : attached
     end
 
@@ -165,10 +165,7 @@ module Filterable
     end
 
     # The generated attachment association for a name, singular or plural
-    # according to the attachment's macro. Legitimacy comes from ActiveStorage's
-    # own reflection registry, never from the shape of an association name — an
-    # ordinary association that happens to be called +<name>_attachment+ does
-    # not qualify.
+    # according to the attachment's macro.
     #
     # @api private
     # @param scope [ActiveRecord::Relation] the relation being filtered.
@@ -176,16 +173,14 @@ module Filterable
     # @return [Symbol, nil] the association name, or nil when the model has no
     #   such attachment.
     def attachment_association(scope, attachment)
-      klass = scope.klass
-      return unless klass.respond_to?(:reflect_on_attachment)
-
-      reflection = klass.reflect_on_attachment(attachment)
+      reflection = attachment_reflection(scope, attachment)
       return unless reflection
 
       reflection.macro == :has_one_attached ? :"#{attachment}_attachment" : :"#{attachment}_attachments"
     end
 
-    # The association-target hash pointing at a blob column.
+    # The association-target hash pointing at a blob column, singular or plural
+    # according to the attachment's macro.
     #
     # @api private
     # @param scope [ActiveRecord::Relation] the relation being filtered.
@@ -193,8 +188,25 @@ module Filterable
     # @param column [Symbol] the blob column.
     # @return [Hash] a target for {Filterable::Target}.
     def blob_target(scope, attachment, column)
-      blob = attachment_association(scope, attachment).to_s.sub(/_attachment(s?)\z/, '_blob\1').to_sym
-      { blob => column }
+      one = attachment_reflection(scope, attachment).macro == :has_one_attached
+      { (one ? :"#{attachment}_blob" : :"#{attachment}_blobs") => column }
+    end
+
+    # The attachment reflection from ActiveStorage's own registry — legitimacy
+    # never comes from the shape of an association name, so an ordinary
+    # association that happens to be called +<name>_attachment+ does not
+    # qualify.
+    #
+    # @api private
+    # @param scope [ActiveRecord::Relation] the relation being filtered.
+    # @param attachment [Object] the attachment name.
+    # @return [Object, nil] the attachment reflection, or nil when the model
+    #   has no such attachment (or no ActiveStorage at all).
+    def attachment_reflection(scope, attachment)
+      klass = scope.klass
+      return unless klass.respond_to?(:reflect_on_attachment)
+
+      klass.reflect_on_attachment(attachment)
     end
   end
 end
