@@ -21,6 +21,18 @@ module Filterable
           sub_scope.where(scope.arel_table[column].gteq(min))
         end
       end
+
+      # The bounds {call} would apply, keyed by public name, with their raw values.
+      #
+      # @api private
+      # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+      # @param scope [ActiveRecord::Relation] the relation being filtered.
+      # @return [Hash{Symbol, String => Hash}] public name => accepted +min+ bound.
+      def applied(params, scope)
+        Filterable::Rangeable.bounds(params, scope).each_with_object({}) do |(name, bounds), report|
+          report[name] = { min: bounds[:min] } if Filterable::Rangeable.parse(bounds[:min])
+        end
+      end
     end
   end
 end

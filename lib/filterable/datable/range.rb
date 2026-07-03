@@ -24,6 +24,20 @@ module Filterable
           sub_scope.where(field.gteq(from)).where(field.lteq(to))
         end
       end
+
+      # The bounds {call} would apply, keyed by public name, with their raw values.
+      #
+      # @api private
+      # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+      # @param scope [ActiveRecord::Relation] the relation being filtered.
+      # @return [Hash{Symbol, String => Hash}] public name => accepted +from+/+to+ bounds.
+      def applied(params, scope)
+        Filterable::Datable.bounds(params, scope).each_with_object({}) do |(name, bounds), report|
+          next unless Filterable::Datable.parse(bounds[:from]) && Filterable::Datable.parse(bounds[:to])
+
+          report[name] = { from: bounds[:from], to: bounds[:to] }
+        end
+      end
     end
   end
 end

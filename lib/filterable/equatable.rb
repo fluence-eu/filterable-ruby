@@ -17,14 +17,37 @@ module Filterable
     # @return [ActiveRecord::Relation] the narrowed relation.
     def call(params, scope)
       declared = scope.equatable_attribute_names
-      sliced = params.slice(*declared.keys)
-      sliced = sliced.to_unsafe_h if sliced.respond_to?(:to_unsafe_h)
-      sliced.reduce(scope) do |sub_scope, (name, raw)|
+      values(params, scope).reduce(scope) do |sub_scope, (name, raw)|
         value = normalize(raw)
         next sub_scope if value.nil?
 
         sub_scope.where(declared[name] => value)
       end
+    end
+
+    # The values {call} would apply, keyed by public name, normalized.
+    #
+    # @api private
+    # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+    # @param scope [ActiveRecord::Relation] the relation being filtered.
+    # @return [Hash{Symbol, String => Object}] public name => accepted value.
+    def applied(params, scope)
+      values(params, scope).each_with_object({}) do |(name, raw), report|
+        value = normalize(raw)
+        report[name] = value unless value.nil?
+      end
+    end
+
+    # Whitelist the params to the declared equatable attributes, keeping their
+    # public names and raw values.
+    #
+    # @api private
+    # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+    # @param scope [ActiveRecord::Relation] the relation being filtered.
+    # @return [Hash{Symbol, String => Object}] public name => raw value.
+    def values(params, scope)
+      sliced = params.slice(*scope.equatable_attribute_names.keys)
+      sliced.respond_to?(:to_unsafe_h) ? sliced.to_unsafe_h : sliced
     end
 
     # Coerce a raw filter value into a scalar or an array of scalars, or nil when
