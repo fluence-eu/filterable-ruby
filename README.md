@@ -169,6 +169,25 @@ scopable  max_price: :cheaper_than
 # filters[date][after] / filters[sort]=-amount / filters[ref] / filters[amount][min] / filters[max_price]
 ```
 
+### Default filters
+
+A model can declare default filter params, applied whenever the request does
+not carry the key:
+
+```ruby
+class MovementDetail < ApplicationRecord
+  default_filters sort: '-value_date', value_date: -> { { since: Date.current } }
+end
+```
+
+Defaults are merged under the request's `filters`: an absent key falls back to
+its default, and a present key — even blank — suppresses it. A `Proc` default
+is evaluated at each call, so `Date.current` is computed at query time, not at
+boot; a `Proc` returning `nil` withdraws its default. Defaults go through the
+same whitelisted fold as request params — a default on an undeclared name
+narrows nothing — and `applied_filters` reports them like any other applied
+filter.
+
 ### Custom filters
 
 `Filterable::Concern` is the whole engine. Register any object responding to
