@@ -6,6 +6,7 @@ require 'active_record'
 require_relative 'filterable/version'
 require_relative 'filterable/concern'
 require_relative 'filterable/attribute_normalization'
+require_relative 'filterable/value_normalization'
 require_relative 'filterable/declarations_validator'
 require_relative 'filterable/datable'
 require_relative 'filterable/datable/after'
@@ -16,11 +17,15 @@ require_relative 'filterable/equatable'
 require_relative 'filterable/rangeable'
 require_relative 'filterable/rangeable/minimum'
 require_relative 'filterable/rangeable/maximum'
+require_relative 'filterable/scopable'
 require_relative 'filterable/sortable'
+require_relative 'filterable/togglable'
 require_relative 'filterable/concerns/datable'
 require_relative 'filterable/concerns/equatable'
 require_relative 'filterable/concerns/rangeable'
+require_relative 'filterable/concerns/scopable'
 require_relative 'filterable/concerns/sortable'
+require_relative 'filterable/concerns/togglable'
 
 # Declarative, whitelisted query filtering and ordering for ActiveRecord models.
 #
@@ -32,6 +37,8 @@ require_relative 'filterable/concerns/sortable'
 #     sortable  :value_date, :gross_amount_cents
 #     equatable :reference
 #     rangeable :gross_amount_cents
+#     scopable  :cheaper_than
+#     togglable :priced
 #   end
 #
 #   MovementDetail.filterable(filters: { value_date: { after: '2026-02-01' }, sort: '-value_date' })
@@ -42,7 +49,9 @@ require_relative 'filterable/concerns/sortable'
 #   include Filterable::Concerns::Datable
 #   include Filterable::Concerns::Equatable
 #   include Filterable::Concerns::Rangeable
+#   include Filterable::Concerns::Scopable
 #   include Filterable::Concerns::Sortable
+#   include Filterable::Concerns::Togglable
 module Filterable
   # Base error class for the gem.
   class Error < StandardError; end

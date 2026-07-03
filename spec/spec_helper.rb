@@ -51,10 +51,16 @@ end
 # Note the absence of any `include`: the Railtie auto-included the engine into
 # ActiveRecord::Base, so the model only declares its whitelisted columns.
 class MovementDetail < ActiveRecord::Base
+  scope :priced,        -> { where.not(gross_amount_cents: nil) }
+  scope :cheaper_than,  ->(cents) { where(gross_amount_cents: ...cents) }
+  scope :costlier_than, ->(cents) { where(gross_amount_cents: cents..) }
+
   datable :value_date, :booking_date
   sortable :value_date, :gross_amount_cents
   equatable :reference, :gross_amount_cents
   rangeable :gross_amount_cents
+  togglable :priced
+  scopable :cheaper_than
 end
 
 RSpec.configure do |config|

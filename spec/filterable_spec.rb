@@ -252,6 +252,170 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe 'scopable' do
+    let!(:cheap) { MovementDetail.create!(gross_amount_cents: 100) }
+    let!(:mid)   { MovementDetail.create!(gross_amount_cents: 250) }
+
+    it 'passes the value to the declared scope' do
+      result = MovementDetail.filterable(filters: { cheaper_than: 250 })
+      expect(result).to contain_exactly(cheap)
+    end
+
+    it 'passes a string value, letting the scope cast it' do
+      result = MovementDetail.filterable(filters: { cheaper_than: '250' })
+      expect(result).to contain_exactly(cheap)
+    end
+
+    it 'ignores a blank value' do
+      result = MovementDetail.filterable(filters: { cheaper_than: '' })
+      expect(result).to contain_exactly(january, february, march, cheap, mid)
+    end
+
+    it 'ignores a non-scalar value instead of raising' do
+      result = nil
+      expect { result = MovementDetail.filterable(filters: { cheaper_than: { evil: 1 } }) }
+        .not_to raise_error
+      expect(result).to contain_exactly(january, february, march, cheap, mid)
+    end
+
+    it 'ignores scopes that exist on the model but are not declared scopable' do
+      result = MovementDetail.filterable(filters: { costlier_than: 50 })
+      expect(result).to contain_exactly(january, february, march, cheap, mid)
+    end
+
+    it 'ignores a declared name whose scope does not exist instead of raising' do
+      model = Class.new(MovementDetail) { scopable :does_not_exist }
+      result = nil
+      expect { result = model.filterable(filters: { does_not_exist: 1 }) }.not_to raise_error
+      expect(result.count).to eq(5)
+    end
+
+    it 'leaves the relation untouched when the scope does not return a relation' do
+      model = Class.new(MovementDetail) do
+        def self.broken(_value)
+          nil
+        end
+        scopable :broken
+      end
+
+      expect(model.filterable(filters: { broken: 1 }).count).to eq(5)
+    end
+
+    it 'resolves a public name onto its aliased scope' do
+      model = Class.new(MovementDetail) { scopable max_price: :cheaper_than }
+
+      expect(model.filterable(filters: { max_price: 250 }).map(&:id)).to eq([cheap.id])
+    end
+
+    it 'inherits the scopable declarations in a subclass' do
+      result = Class.new(MovementDetail).filterable(filters: { cheaper_than: 250 })
+
+      expect(result.map(&:id)).to eq([cheap.id])
+    end
+
+    it 'accepts ActionController::Parameters from a controller' do
+      params = ActionController::Parameters.new(filters: { cheaper_than: '250' })
+      expect(MovementDetail.filterable(params).map(&:id)).to eq([cheap.id])
+    end
+
+    it 'reports the normalized value in applied_filters' do
+      report = MovementDetail.applied_filters(filters: { cheaper_than: '250' })
+
+      expect(report[:cheaper_than]).to eq('250')
+    end
+
+    it 'omits a declared name whose scope does not exist from applied_filters' do
+      model = Class.new(MovementDetail) { scopable :does_not_exist }
+
+      expect(model.applied_filters(filters: { does_not_exist: 1 })).to be_empty
+    end
+  end
+
+  describe 'togglable' do
+    let!(:cheap) { MovementDetail.create!(gross_amount_cents: 100) }
+    let!(:mid)   { MovementDetail.create!(gross_amount_cents: 250) }
+
+    it 'applies the scope when the value is a true-ish string' do
+      result = MovementDetail.filterable(filters: { priced: 'true' })
+      expect(result).to contain_exactly(cheap, mid)
+    end
+
+    it 'accepts every strict true value' do
+      [true, 1, '1'].each do |value|
+        expect(MovementDetail.filterable(filters: { priced: value })).to contain_exactly(cheap, mid)
+      end
+    end
+
+    it 'ignores false values' do
+      [false, 0, '0', 'false'].each do |value|
+        expect(MovementDetail.filterable(filters: { priced: value }))
+          .to contain_exactly(january, february, march, cheap, mid)
+      end
+    end
+
+    it 'ignores an arbitrary string instead of treating it as true' do
+      result = MovementDetail.filterable(filters: { priced: 'garbage' })
+      expect(result).to contain_exactly(january, february, march, cheap, mid)
+    end
+
+    it 'toggles on a bare key carrying a blank value' do
+      ['', '  ', nil].each do |value|
+        expect(MovementDetail.filterable(filters: { priced: value })).to contain_exactly(cheap, mid)
+      end
+    end
+
+    it 'toggles on a bare key from ActionController::Parameters' do
+      params = ActionController::Parameters.new(filters: { priced: nil })
+      expect(MovementDetail.filterable(params).map(&:id)).to contain_exactly(cheap.id, mid.id)
+    end
+
+    it 'ignores a declared name whose scope does not exist instead of raising' do
+      model = Class.new(MovementDetail) { togglable :does_not_exist }
+      result = nil
+      expect { result = model.filterable(filters: { does_not_exist: 'true' }) }.not_to raise_error
+      expect(result.count).to eq(5)
+    end
+
+    it 'leaves the relation untouched when the scope does not return a relation' do
+      model = Class.new(MovementDetail) do
+        def self.broken
+          nil
+        end
+        togglable :broken
+      end
+
+      expect(model.filterable(filters: { broken: 'true' }).count).to eq(5)
+    end
+
+    it 'resolves a public name onto its aliased scope' do
+      model = Class.new(MovementDetail) { togglable has_price: :priced }
+
+      expect(model.filterable(filters: { has_price: 'true' }).map(&:id)).to contain_exactly(cheap.id, mid.id)
+    end
+
+    it 'inherits the togglable declarations in a subclass' do
+      result = Class.new(MovementDetail).filterable(filters: { priced: 'true' })
+
+      expect(result.map(&:id)).to contain_exactly(cheap.id, mid.id)
+    end
+
+    it 'reports true in applied_filters' do
+      report = MovementDetail.applied_filters(filters: { priced: '1' })
+
+      expect(report[:priced]).to be(true)
+    end
+
+    it 'reports true in applied_filters for a bare key' do
+      report = MovementDetail.applied_filters(filters: { priced: '' })
+
+      expect(report[:priced]).to be(true)
+    end
+
+    it 'stays out of applied_filters when the value is not true-ish' do
+      expect(MovementDetail.applied_filters(filters: { priced: 'garbage' })).to be_empty
+    end
+  end
+
   describe '.add_filter' do
     it 'folds a block filter over the relation like any filter object' do
       model = Class.new(MovementDetail) do
@@ -424,6 +588,26 @@ RSpec.describe Filterable::Concern do
       )
     end
 
+    it 'reports a scopable declaration pointing to an unknown scope' do
+      stub_const('BrokenScope', Class.new(MovementDetail) { scopable :nonexistent })
+      validator = BrokenScope.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "scopable: 'nonexistent' maps to unknown scope 'nonexistent' on BrokenScope"
+      )
+    end
+
+    it 'reports a togglable declaration pointing to an unknown scope through its alias' do
+      stub_const('BrokenToggle', Class.new(MovementDetail) { togglable active: :nonexistent })
+      validator = BrokenToggle.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "togglable: 'active' maps to unknown scope 'nonexistent' on BrokenToggle"
+      )
+    end
+
     it 'is valid for a model without any declaration DSL' do
       model = Class.new { include Filterable::Concern }
 
@@ -439,39 +623,48 @@ RSpec.describe Filterable::Concern do
         include Filterable::Concerns::Sortable
         include Filterable::Concerns::Equatable
         include Filterable::Concerns::Rangeable
+        include Filterable::Concerns::Scopable
+        include Filterable::Concerns::Togglable
       end
     end
 
     it 'maps a bare attribute onto its own column' do
       model.datable(:value_date).sortable(:value_date).equatable(:reference).rangeable(:gross_amount_cents)
+           .scopable(:cheaper_than).togglable(:priced)
 
       expect(model.datable_attribute_names[:value_date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:value_date]).to eq(:value_date)
       expect(model.equatable_attribute_names[:reference]).to eq(:reference)
       expect(model.rangeable_attribute_names[:gross_amount_cents]).to eq(:gross_amount_cents)
+      expect(model.scopable_scope_names[:cheaper_than]).to eq(:cheaper_than)
+      expect(model.togglable_scope_names[:priced]).to eq(:priced)
     end
 
     it 'aliases a public name to a column through a hash' do
       model.datable(date: :value_date).sortable(amount: :gross_amount_cents).equatable(ref: :reference)
-           .rangeable(amount: :gross_amount_cents)
+           .rangeable(amount: :gross_amount_cents).scopable(max_price: :cheaper_than).togglable(has_price: :priced)
 
       expect(model.datable_attribute_names[:date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:amount]).to eq(:gross_amount_cents)
       expect(model.equatable_attribute_names[:ref]).to eq(:reference)
       expect(model.rangeable_attribute_names[:amount]).to eq(:gross_amount_cents)
+      expect(model.scopable_scope_names[:max_price]).to eq(:cheaper_than)
+      expect(model.togglable_scope_names[:has_price]).to eq(:priced)
     end
 
     it 'ignores an unsupported declaration' do
-      model.datable(42).sortable(nil).equatable(3.14).rangeable(Object.new)
+      model.datable(42).sortable(nil).equatable(3.14).rangeable(Object.new).scopable(42).togglable(nil)
 
       expect(model.datable_attribute_names).to be_empty
       expect(model.sortable_attribute_names).to be_empty
       expect(model.equatable_attribute_names).to be_empty
       expect(model.rangeable_attribute_names).to be_empty
+      expect(model.scopable_scope_names).to be_empty
+      expect(model.togglable_scope_names).to be_empty
     end
   end
 
-  describe Filterable::Equatable, '.normalize' do
+  describe Filterable::ValueNormalization, '.normalize' do
     it 'passes booleans through for JSON body params' do
       expect(described_class.normalize(true)).to be(true)
       expect(described_class.normalize(false)).to be(false)
