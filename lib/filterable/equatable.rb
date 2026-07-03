@@ -18,7 +18,7 @@ module Filterable
     def call(params, scope)
       declared = scope.equatable_attribute_names
       accepted(params, scope).reduce(scope) do |sub_scope, (name, value)|
-        sub_scope.where(declared[name] => value)
+        Filterable::Target.narrow_equal(sub_scope, declared[name], value)
       end
     end
 

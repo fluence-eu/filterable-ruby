@@ -40,25 +40,54 @@ Filterable::Railtie.instance.run_initializers
 
 ActiveRecord::Schema.verbose = false
 ActiveRecord::Schema.define do
+  create_table :banks, force: true do |t|
+    t.string :name
+  end
+
+  create_table :accounts, force: true do |t|
+    t.string :name
+    t.integer :balance_cents
+    t.date :opened_on
+    t.integer :bank_id
+  end
+
   create_table :movement_details, force: true do |t|
     t.date :value_date
     t.date :booking_date
     t.integer :gross_amount_cents
     t.string :reference
+    t.integer :account_id
+    t.string :attachable_type
+    t.integer :attachable_id
   end
 end
 
 # Note the absence of any `include`: the Railtie auto-included the engine into
 # ActiveRecord::Base, so the model only declares its whitelisted columns.
+class Bank < ActiveRecord::Base
+  has_many :accounts
+end
+
+class Account < ActiveRecord::Base
+  belongs_to :bank, optional: true
+  has_many :movement_details
+
+  equatable :name, detail_reference: { movement_details: :reference }
+end
+
 class MovementDetail < ActiveRecord::Base
+  belongs_to :account, optional: true
+  belongs_to :attachable, polymorphic: true, optional: true
+
   scope :priced,        -> { where.not(gross_amount_cents: nil) }
   scope :cheaper_than,  ->(cents) { where(gross_amount_cents: ...cents) }
   scope :costlier_than, ->(cents) { where(gross_amount_cents: cents..) }
 
-  datable :value_date, :booking_date
+  datable :value_date, :booking_date, account_opened: { account: :opened_on }
   sortable :value_date, :gross_amount_cents
-  equatable :reference, :gross_amount_cents
-  rangeable :gross_amount_cents
+  equatable :reference, :gross_amount_cents,
+            account_name: { account: :name }, bank_name: { account: { bank: :name } }
+  rangeable :gross_amount_cents, account_balance: { account: :balance_cents }
   togglable :priced
   scopable :cheaper_than
 end

@@ -53,16 +53,61 @@ module Filterable
     # @api private
     # @param kind [Symbol] the declaration DSL to check.
     # @return [Array<String>] one message per declaration of that kind whose
-    #   column does not exist.
+    #   target does not check out.
     def column_errors(kind)
       reader = "#{kind}_attribute_names"
       return [] unless @model.respond_to?(reader)
 
-      @model.public_send(reader).filter_map do |public_name, column|
-        next if @model.column_names.include?(column.to_s)
-
-        "#{kind}: '#{public_name}' maps to unknown column '#{column}' on #{@model.name}"
+      @model.public_send(reader).filter_map do |public_name, target|
+        target_error(kind, public_name, target)
       end
+    end
+
+    # The error for one declared target, nil when it checks out.
+    #
+    # @api private
+    # @param kind [Symbol] the declaration DSL being checked.
+    # @param public_name [Object] the declared public name.
+    # @param target [Object] the declared target — a column, or an association path.
+    # @return [String, nil] the error message, or nil.
+    def target_error(kind, public_name, target)
+      return column_error(kind, public_name, @model, target) unless target.is_a?(Hash)
+      return "#{kind}: '#{public_name}' cannot sort through an association" if kind == :sortable
+
+      path_error(kind, public_name, target)
+    end
+
+    # The error for one association-path target, nil when it checks out.
+    #
+    # @api private
+    # @param kind [Symbol] the declaration DSL being checked.
+    # @param public_name [Object] the declared public name.
+    # @param target [Hash] the declared association path.
+    # @return [String, nil] the error message, or nil.
+    def path_error(kind, public_name, target)
+      path, column = Filterable::Target.unpack(target)
+      if column.is_a?(Hash) || path.empty?
+        return "#{kind}: '#{public_name}' has an ambiguous association target on #{@model.name}"
+      end
+
+      klass, = Filterable::Target.resolve(@model, path)
+      return column_error(kind, public_name, klass, column) if klass
+
+      "#{kind}: '#{public_name}' walks an unresolvable association path '#{path.join(".")}' on #{@model.name}"
+    end
+
+    # The error for a column expected on a model, nil when it exists.
+    #
+    # @api private
+    # @param kind [Symbol] the declaration DSL being checked.
+    # @param public_name [Object] the declared public name.
+    # @param klass [Class] the model expected to own the column.
+    # @param column [Object] the declared column.
+    # @return [String, nil] the error message, or nil.
+    def column_error(kind, public_name, klass, column)
+      return if klass.column_names.include?(column.to_s)
+
+      "#{kind}: '#{public_name}' maps to unknown column '#{column}' on #{klass.name}"
     end
 
     # The error messages for one scope-backed declaration DSL.
@@ -76,7 +121,7 @@ module Filterable
       return [] unless @model.respond_to?(reader)
 
       @model.public_send(reader).filter_map do |public_name, scope_name|
-        next if @model.respond_to?(scope_name)
+        next if !scope_name.is_a?(Hash) && @model.respond_to?(scope_name)
 
         "#{kind}: '#{public_name}' maps to unknown scope '#{scope_name}' on #{@model.name}"
       end
