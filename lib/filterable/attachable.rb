@@ -12,9 +12,6 @@ module Filterable
   # Rails' documented contract), so the gem never references ActiveStorage
   # itself; a declared name without those associations narrows nothing.
   module Attachable
-    # The explicit values that flip +present+ to its unattached side.
-    FALSE_VALUES = [false, 0, '0', 'false'].freeze
-
     # The symbolic +type+ shortcuts, each expanded lazily at query time against
     # ActiveStorage's configured content-type lists — never frozen at boot, and
     # only ever called once the model proved it has real attachments, so the
@@ -123,7 +120,7 @@ module Filterable
       raw = bounds[:present]
       return :attached if Filterable::Togglable.toggled_on?(raw)
 
-      :missing if FALSE_VALUES.include?(raw)
+      :missing if Filterable::Togglable.toggled_off?(raw)
     end
 
     # Applies one accepted entry onto the scope.

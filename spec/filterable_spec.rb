@@ -313,6 +313,35 @@ RSpec.describe Filterable::Concern do
       expect(visitor.compile(sensitive.arel.ast)).not_to include('ILIKE')
     end
 
+    it 'lets the request opt into case sensitivity' do
+      relation = MovementDetail.filterable(filters: { reference: { starts_with: 'INV', case_sensitive: true } })
+      visitor = Arel::Visitors::PostgreSQL.new(MovementDetail.connection)
+
+      expect(visitor.compile(relation.arel.ast)).not_to include('ILIKE')
+    end
+
+    it 'treats a bare case_sensitive key as on' do
+      relation = MovementDetail.filterable(filters: { reference: { starts_with: 'INV', case_sensitive: '' } })
+      visitor = Arel::Visitors::PostgreSQL.new(MovementDetail.connection)
+
+      expect(visitor.compile(relation.arel.ast)).not_to include('ILIKE')
+    end
+
+    it 'lets the request opt out of a declared sensitivity' do
+      model = Class.new(MovementDetail) { matchable code: :reference, case_sensitive: true }
+      relation = model.filterable(filters: { code: { starts_with: 'INV', case_sensitive: 'false' } })
+      visitor = Arel::Visitors::PostgreSQL.new(MovementDetail.connection)
+
+      expect(visitor.compile(relation.arel.ast)).to include('ILIKE')
+    end
+
+    it 'falls back to the declaration on an arbitrary case_sensitive value' do
+      relation = MovementDetail.filterable(filters: { reference: { starts_with: 'INV', case_sensitive: 'maybe' } })
+      visitor = Arel::Visitors::PostgreSQL.new(MovementDetail.connection)
+
+      expect(visitor.compile(relation.arel.ast)).to include('ILIKE')
+    end
+
     it 'matches case sensitively end to end when the adapter enforces it' do
       model = Class.new(MovementDetail) { matchable code: :reference, case_sensitive: true }
       MovementDetail.connection.execute('PRAGMA case_sensitive_like = ON')

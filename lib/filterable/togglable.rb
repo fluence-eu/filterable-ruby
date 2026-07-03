@@ -13,6 +13,11 @@ module Filterable
     # +ActiveModel::Type::Boolean+ where any unrecognized string casts to true.
     TRUE_VALUES = [true, 1, '1', 'true'].freeze
 
+    # The explicit values that switch a toggle off — what Rails' +check_box+
+    # hidden field submits. The shared vocabulary for every boolean-ish param
+    # in the gem.
+    FALSE_VALUES = [false, 0, '0', 'false'].freeze
+
     module_function
 
     # Narrows the scope by applying each toggled-on declared scope.
@@ -75,6 +80,15 @@ module Filterable
       else
         TRUE_VALUES.include?(value)
       end
+    end
+
+    # Whether a value is an explicit off.
+    #
+    # @api private
+    # @param value [Object] the raw value.
+    # @return [Boolean]
+    def toggled_off?(value)
+      FALSE_VALUES.include?(value)
     end
   end
 end

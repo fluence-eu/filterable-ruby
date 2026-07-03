@@ -15,9 +15,9 @@ module Filterable
       # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
         entries = Filterable::Matchable.accepted(params, scope, :ends_with)
-        entries.reduce(scope) do |sub_scope, (name, target, term)|
+        entries.reduce(scope) do |sub_scope, (_name, target, term, sensitive)|
           pattern = "%#{Filterable::Matchable.escape(term)}"
-          Filterable::Matchable.narrow(sub_scope, scope, name, target, pattern)
+          Filterable::Matchable.narrow(sub_scope, target, pattern, sensitive)
         end
       end
 
@@ -29,7 +29,7 @@ module Filterable
       # @return [Hash{Symbol, String => Hash}] public name => accepted term.
       def applied(params, scope)
         entries = Filterable::Matchable.accepted(params, scope, :ends_with)
-        entries.each_with_object({}) do |(name, _target, term), report|
+        entries.each_with_object({}) do |(name, _target, term, _sensitive), report|
           report[name] = { ends_with: term }
         end
       end

@@ -5,7 +5,11 @@ module Filterable
   # user's term is always LIKE-escaped (+%+ and +_+ match literally) and the
   # wildcard placement is fixed by the declarative key — the caller never
   # controls the pattern. Matching is case insensitive by default; a
-  # declaration may opt into sensitivity with +case_sensitive: true+.
+  # declaration may opt into sensitivity with +case_sensitive: true+, and the
+  # request may override either way with the reserved
+  # +filters[<attribute>][case_sensitive]+ key (strict true or bare key
+  # switches on, explicit false switches off, anything else falls back to the
+  # declaration).
   module Matchable
     # The LIKE escape character, matching what +sanitize_sql_like+ emits.
     ESCAPE = '\\'
@@ -34,13 +38,44 @@ module Filterable
     # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
     # @param scope [ActiveRecord::Relation] the relation being filtered.
     # @param key [Symbol] the match key the filter reads.
-    # @return [Array<Array(Object, Object, String)>] public name, target and raw term.
+    # @return [Array<Array(Object, Object, String, Boolean)>] public name,
+    #   target, raw term and effective case sensitivity.
     def accepted(params, scope, key)
       declared = scope.matchable_attribute_names
       bounds(params, scope).filter_map do |name, terms|
         term = terms[key]
-        [name, declared[name], term] if term.is_a?(String) && term.present?
+        next unless term.is_a?(String) && term.present?
+
+        [name, declared[name], term, sensitive?(scope, name, terms)]
       end
+    end
+
+    # The effective case sensitivity for one attribute: the request's
+    # +case_sensitive+ key when it carries a usable value, the declaration
+    # otherwise.
+    #
+    # @api private
+    # @param scope [ActiveRecord::Relation] the relation being filtered.
+    # @param name [Object] the declared public name.
+    # @param terms [Hash] the raw keys under +filters[<attribute>]+.
+    # @return [Boolean]
+    def sensitive?(scope, name, terms)
+      override = request_sensitivity(terms)
+      override.nil? ? scope.matchable_case_sensitive[name].present? : override
+    end
+
+    # The request-level sensitivity override, nil when absent or unusable.
+    #
+    # @api private
+    # @param terms [Hash] the raw keys under +filters[<attribute>]+.
+    # @return [Boolean, nil]
+    def request_sensitivity(terms)
+      return unless terms.key?(:case_sensitive)
+
+      raw = terms[:case_sensitive]
+      return true if Filterable::Togglable.toggled_on?(raw)
+
+      false if Filterable::Togglable.toggled_off?(raw)
     end
 
     # LIKE-escapes a user term so its +%+ and +_+ match literally.
@@ -52,18 +87,15 @@ module Filterable
       ActiveRecord::Base.sanitize_sql_like(term)
     end
 
-    # Narrows the scope with a LIKE pattern on the target's column, case
-    # sensitive when the attribute was declared so.
+    # Narrows the scope with a LIKE pattern on the target's column.
     #
     # @api private
     # @param sub_scope [ActiveRecord::Relation] the relation being narrowed.
-    # @param scope [ActiveRecord::Relation] the relation being filtered.
-    # @param name [Object] the declared public name.
     # @param target [Symbol, String, Hash] the declared target.
     # @param pattern [String] the escaped LIKE pattern.
+    # @param sensitive [Boolean] the effective case sensitivity.
     # @return [ActiveRecord::Relation] the narrowed relation.
-    def narrow(sub_scope, scope, name, target, pattern)
-      sensitive = scope.matchable_case_sensitive[name] ? true : false
+    def narrow(sub_scope, target, pattern, sensitive)
       Filterable::Target.narrow(sub_scope, target) { |field| field.matches(pattern, ESCAPE, sensitive) }
     end
   end

@@ -145,10 +145,18 @@ MovementDetail.filterable(filters: { reference: { starts_with: 'INV' } })
 The term is always LIKE-escaped — a user `%` or `_` matches literally — and
 the wildcard placement is fixed by the key: the caller never controls the
 pattern. Matching is case insensitive by default (`ILIKE` on PostgreSQL);
-`case_sensitive: true` opts a declaration into sensitivity (`case_sensitive`
-is a reserved word, never a public name — effective sensitivity on SQLite
-also depends on `PRAGMA case_sensitive_like`). Blank or non-string terms are
-dropped silently.
+`case_sensitive: true` opts a declaration into sensitivity, and the request
+may override either way with the reserved nested key:
+
+```ruby
+MovementDetail.filterable(filters: { reference: { starts_with: 'INV', case_sensitive: true } })
+```
+
+A strict true or bare key switches on, an explicit false (`'false'`, `'0'`)
+switches off — even on an attribute declared sensitive — and anything else
+falls back to the declaration (`case_sensitive` is a reserved word, never a
+public name; effective sensitivity on SQLite also depends on
+`PRAGMA case_sensitive_like`). Blank or non-string terms are dropped silently.
 
 ### Scope filters (`Scopable` / `Togglable`)
 
