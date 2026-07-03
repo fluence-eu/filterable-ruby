@@ -70,14 +70,21 @@ module Filterable
       # nested +filters+ params merged over the declared defaults. Returns +all+
       # untouched when neither carries anything usable.
       #
+      # The optional context hash is handed, as given, to every filter whose
+      # callable accepts a third argument — +Model.filterable(params, user_id:
+      # current_user.id)+ — so a custom filter can depend on the caller without
+      # global state. Two-argument filters, the built-in ones included, never
+      # see it.
+      #
       # @api public
       # @param params [Hash, ActionController::Parameters] request params, read at +params[:filters]+.
+      # @param context [Hash] caller-provided context for context-aware filters.
       # @return [ActiveRecord::Relation] the filtered relation.
-      def filterable(params = {})
+      def filterable(params = {}, context = {})
         filters_params = effective_filters(params)
         return all if filters_params.empty?
 
-        filters.reduce(all) { |scope, filter| filter.call(filters_params, scope) || scope }
+        filters.reduce(all) { |scope, filter| apply_filter(filter, filters_params, scope, context) || scope }
       end
 
       # Reports which filters {filterable} would actually apply from the same
@@ -90,14 +97,15 @@ module Filterable
       #
       # @api public
       # @param params [Hash, ActionController::Parameters] request params, read at +params[:filters]+.
+      # @param context [Hash] caller-provided context for context-aware filters.
       # @return [ActiveSupport::HashWithIndifferentAccess] public name => accepted value.
-      def applied_filters(params = {})
+      def applied_filters(params = {}, context = {})
         filters_params = effective_filters(params)
         report = {}.with_indifferent_access
         return report if filters_params.empty?
 
         filters.select { |filter| filter.respond_to?(:applied) }
-               .reduce(report) { |acc, filter| acc.deep_merge(filter.applied(filters_params, all)) }
+               .reduce(report) { |acc, filter| acc.deep_merge(report_from(filter, filters_params, context)) }
       end
 
       # A validator checking every declaration against the model's columns, meant
@@ -110,6 +118,52 @@ module Filterable
       end
 
       private
+
+      # Calls one filter, handing it the context when its +call+ accepts a
+      # third argument.
+      #
+      # @api private
+      # @param filter [#call] the registered filter.
+      # @param filters_params [ActiveSupport::HashWithIndifferentAccess] the effective +filters+ params.
+      # @param scope [ActiveRecord::Relation] the relation being narrowed.
+      # @param context [Hash] the caller-provided context.
+      # @return [ActiveRecord::Relation, nil] the filter's return value.
+      def apply_filter(filter, filters_params, scope, context)
+        if context_aware?(filter, :call)
+          filter.call(filters_params, scope, context)
+        else
+          filter.call(filters_params, scope)
+        end
+      end
+
+      # Collects one filter's report, handing it the context when its +applied+
+      # accepts a third argument.
+      #
+      # @api private
+      # @param filter [#applied] the registered filter.
+      # @param filters_params [ActiveSupport::HashWithIndifferentAccess] the effective +filters+ params.
+      # @param context [Hash] the caller-provided context.
+      # @return [Hash] the filter's report.
+      def report_from(filter, filters_params, context)
+        if context_aware?(filter, :applied)
+          filter.applied(filters_params, all, context)
+        else
+          filter.applied(filters_params, all)
+        end
+      end
+
+      # Whether a filter's callable accepts a third positional argument — an
+      # exact three-parameter signature, or a negative arity whose required
+      # parameters leave room for one (optional argument or splat).
+      #
+      # @api private
+      # @param filter [Object] the registered filter.
+      # @param method_name [Symbol] +:call+ or +:applied+.
+      # @return [Boolean]
+      def context_aware?(filter, method_name)
+        arity = filter.is_a?(Proc) ? filter.arity : filter.method(method_name).arity
+        arity == 3 || (arity.negative? && arity >= -4)
+      end
 
       # The request filters merged over the evaluated defaults — the single
       # params shape handed to every filter by {filterable} and
