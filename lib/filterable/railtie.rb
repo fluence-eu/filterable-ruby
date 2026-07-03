@@ -5,11 +5,11 @@ module Filterable
   # defined (see the guarded +require_relative+ in {file:lib/filterable.rb}).
   #
   # The single initializer hooks +ActiveSupport.on_load(:active_record)+ so the
-  # filtering engine and the datable/sortable concerns are mixed into
+  # filtering engine and the datable/equatable/sortable concerns are mixed into
   # +ActiveRecord::Base+ once — every model then exposes +filterable+ and the
-  # +datable+ / +sortable+ declaration DSL without an explicit +include+. A model
-  # that declares nothing keeps an empty whitelist, so +filterable+ is a no-op
-  # that returns +all+.
+  # +datable+ / +sortable+ / +equatable+ declaration DSL without an explicit
+  # +include+. A model that declares nothing keeps an empty whitelist, so
+  # +filterable+ is a no-op that returns +all+.
   #
   # Outside Rails the railtie is never loaded; include the concerns manually.
   #
@@ -19,6 +19,7 @@ module Filterable
       ActiveSupport.on_load(:active_record) do
         include Filterable::Concern
         include Filterable::Concerns::Datable
+        include Filterable::Concerns::Equatable
         include Filterable::Concerns::Sortable
       end
     end
