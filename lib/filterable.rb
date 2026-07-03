@@ -13,9 +13,13 @@ require_relative 'filterable/datable/before'
 require_relative 'filterable/datable/range'
 require_relative 'filterable/datable/since'
 require_relative 'filterable/equatable'
+require_relative 'filterable/rangeable'
+require_relative 'filterable/rangeable/minimum'
+require_relative 'filterable/rangeable/maximum'
 require_relative 'filterable/sortable'
 require_relative 'filterable/concerns/datable'
 require_relative 'filterable/concerns/equatable'
+require_relative 'filterable/concerns/rangeable'
 require_relative 'filterable/concerns/sortable'
 
 # Declarative, whitelisted query filtering and ordering for ActiveRecord models.
@@ -27,6 +31,7 @@ require_relative 'filterable/concerns/sortable'
 #     datable   :value_date, :booking_date
 #     sortable  :value_date, :gross_amount_cents
 #     equatable :reference
+#     rangeable :gross_amount_cents
 #   end
 #
 #   MovementDetail.filterable(filters: { value_date: { after: '2026-02-01' }, sort: '-value_date' })
@@ -36,6 +41,7 @@ require_relative 'filterable/concerns/sortable'
 #   include Filterable::Concern
 #   include Filterable::Concerns::Datable
 #   include Filterable::Concerns::Equatable
+#   include Filterable::Concerns::Rangeable
 #   include Filterable::Concerns::Sortable
 module Filterable
   # Base error class for the gem.

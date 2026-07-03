@@ -2,7 +2,7 @@
 
 Declarative, **whitelisted** query filtering and ordering for ActiveRecord.
 
-A model declares which columns are *datable*, *sortable* and *equatable*.
+A model declares which columns are *datable*, *sortable*, *equatable* and *rangeable*.
 `filterable(params)` then folds a chain of small, composable filters over the
 relation, reading from nested request params and touching **only** the columns
 the model explicitly exposed. An unknown attribute, a malformed date, or an
@@ -41,6 +41,7 @@ class MovementDetail < ApplicationRecord
   datable   :value_date, :booking_date
   sortable  :value_date, :gross_amount_cents
   equatable :reference
+  rangeable :gross_amount_cents
 end
 ```
 
@@ -97,6 +98,26 @@ Blank values and non-scalar values (e.g. a hash injected through the query
 string) are dropped silently, so an empty form field or a malformed param
 narrows nothing.
 
+### Numeric bounds (`Rangeable`)
+
+Each declared rangeable attribute accepts these nested keys under
+`filters[<attribute>]`, both inclusive:
+
+| Key           | Meaning                       | SQL          |
+|---------------|-------------------------------|--------------|
+| `min`         | at or above the bound         | `>= value`   |
+| `max`         | at or below the bound         | `<= value`   |
+| `min` + `max` | inclusive range               | `BETWEEN`    |
+
+```ruby
+MovementDetail.filterable(filters: { gross_amount_cents: { min: 100, max: 250 } })
+```
+
+Integer strings are read in base ten, decimals fall back to `Float`;
+unparseable or blank bounds are dropped silently. A column may be both
+`equatable` and `rangeable`: a scalar value filters by equality, a `min`/`max`
+hash by range.
+
 ### Ordering (`Sortable`)
 
 `filters[sort]` is a comma-separated list of declared attributes, each optionally
@@ -116,8 +137,9 @@ All the DSLs accept a hash to expose a public name that differs from the column:
 datable   date:   :value_date
 sortable  amount: :gross_amount_cents
 equatable ref:    :reference
+rangeable amount: :gross_amount_cents
 
-# filters[date][after] / filters[sort]=-amount / filters[ref]
+# filters[date][after] / filters[sort]=-amount / filters[ref] / filters[amount][min]
 ```
 
 ### Custom filters
@@ -163,11 +185,12 @@ The engine never calls it: production behavior stays a silent no-op.
 include Filterable::Concern
 include Filterable::Concerns::Datable
 include Filterable::Concerns::Equatable
+include Filterable::Concerns::Rangeable
 include Filterable::Concerns::Sortable
 ```
 
-So every model gains `filterable` and the `datable` / `sortable` / `equatable`
-DSL with no boilerplate. A model that declares no columns keeps an empty whitelist, so
+So every model gains `filterable` and the `datable` / `sortable` / `equatable` /
+`rangeable` DSL with no boilerplate. A model that declares no columns keeps an empty whitelist, so
 `filterable` is a harmless pass-through that returns `all`.
 
 ## Outside Rails
@@ -180,17 +203,19 @@ class MovementDetail < ActiveRecord::Base
   include Filterable::Concern
   include Filterable::Concerns::Datable
   include Filterable::Concerns::Equatable
+  include Filterable::Concerns::Rangeable
   include Filterable::Concerns::Sortable
 
   datable   :value_date
   sortable  :value_date
   equatable :reference
+  rangeable :gross_amount_cents
 end
 ```
 
 > **Include order matters.** `Filterable::Concern` provides `add_filter`, which
-> the `Datable`/`Equatable`/`Sortable` concerns call at include time — so it must
-> come first.
+> the `Datable`/`Equatable`/`Rangeable`/`Sortable` concerns call at include
+> time — so it must come first.
 
 ---
 
@@ -198,11 +223,13 @@ end
 
 - `Filterable::Concern` keeps a per-class list of filters (cloned down the
   inheritance chain) and `filterable` reduces the relation through them.
-- `Filterable::Concerns::Datable` / `Equatable` / `Sortable` are thin
-  `ActiveSupport::Concern` mixins: they register the concrete filters and add
-  the `datable` / `equatable` / `sortable` declaration DSL on top of the engine.
+- `Filterable::Concerns::Datable` / `Equatable` / `Rangeable` / `Sortable` are
+  thin `ActiveSupport::Concern` mixins: they register the concrete filters and
+  add the `datable` / `equatable` / `rangeable` / `sortable` declaration DSL on
+  top of the engine.
 - The concrete date filters live under `Filterable::Datable::{After,Before,Range,Since}`,
-  the equality filter is `Filterable::Equatable` and the ordering filter is
+  the equality filter is `Filterable::Equatable`, the numeric bound filters are
+  `Filterable::Rangeable::{Minimum,Maximum}` and the ordering filter is
   `Filterable::Sortable`.
 
 ---

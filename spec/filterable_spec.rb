@@ -170,6 +170,88 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe 'rangeable' do
+    let!(:cheap)  { MovementDetail.create!(gross_amount_cents: 100) }
+    let!(:mid)    { MovementDetail.create!(gross_amount_cents: 250) }
+    let!(:pricey) { MovementDetail.create!(gross_amount_cents: 400) }
+
+    it 'keeps records at or above min, bound included' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: { min: 250 } })
+      expect(result).to contain_exactly(mid, pricey)
+    end
+
+    it 'keeps records at or below max, bound included' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: { max: '250' } })
+      expect(result).to contain_exactly(cheap, mid)
+    end
+
+    it 'combines min and max into an inclusive range' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: { min: '150', max: '399' } })
+      expect(result).to contain_exactly(mid)
+    end
+
+    it 'keeps a zero bound instead of dropping it as blank' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: { min: 0 } })
+      expect(result).to contain_exactly(cheap, mid, pricey)
+    end
+
+    it 'parses a decimal bound' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: { max: '250.5' } })
+      expect(result).to contain_exactly(cheap, mid)
+    end
+
+    it 'ignores an unparseable bound instead of raising' do
+      result = nil
+      expect { result = MovementDetail.filterable(filters: { gross_amount_cents: { min: 'cheap' } }) }
+        .not_to raise_error
+      expect(result).to contain_exactly(january, february, march, cheap, mid, pricey)
+    end
+
+    it 'ignores a blank bound' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: { min: '' } })
+      expect(result).to contain_exactly(january, february, march, cheap, mid, pricey)
+    end
+
+    it 'ignores attributes that are not declared rangeable' do
+      result = MovementDetail.filterable(filters: { reference: { min: 'A' } })
+      expect(result).to contain_exactly(january, february, march, cheap, mid, pricey)
+    end
+
+    it 'ignores a scalar where the bounds are expected instead of raising' do
+      model = Class.new(MovementDetail) { rangeable amount: :gross_amount_cents }
+      result = nil
+      expect { result = model.filterable(filters: { amount: '100' }) }.not_to raise_error
+      expect(result.count).to eq(6)
+    end
+
+    it 'composes with equatable on the same column: a scalar filters by equality' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: '100' })
+      expect(result).to contain_exactly(cheap)
+    end
+
+    it 'composes with equatable on the same column: bounds filter by range' do
+      result = MovementDetail.filterable(filters: { gross_amount_cents: { min: 300 } })
+      expect(result).to contain_exactly(pricey)
+    end
+
+    it 'resolves a public name onto its aliased column' do
+      model = Class.new(MovementDetail) { rangeable amount: :gross_amount_cents }
+
+      expect(model.filterable(filters: { amount: { min: 300 } }).map(&:id)).to eq([pricey.id])
+    end
+
+    it 'inherits the rangeable declarations in a subclass' do
+      result = Class.new(MovementDetail).filterable(filters: { gross_amount_cents: { min: 300 } })
+
+      expect(result.map(&:id)).to eq([pricey.id])
+    end
+
+    it 'accepts ActionController::Parameters from a controller' do
+      params = ActionController::Parameters.new(filters: { gross_amount_cents: { min: '300' } })
+      expect(MovementDetail.filterable(params).map(&:id)).to eq([pricey.id])
+    end
+  end
+
   describe '.add_filter' do
     it 'folds a block filter over the relation like any filter object' do
       model = Class.new(MovementDetail) do
@@ -210,6 +292,16 @@ RSpec.describe Filterable::Concern do
       )
     end
 
+    it 'reports a rangeable declaration pointing to an unknown column' do
+      stub_const('BrokenRange', Class.new(MovementDetail) { rangeable :gross_amount })
+      validator = BrokenRange.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "rangeable: 'gross_amount' maps to unknown column 'gross_amount' on BrokenRange"
+      )
+    end
+
     it 'is valid for a model without any declaration DSL' do
       model = Class.new { include Filterable::Concern }
 
@@ -224,31 +316,36 @@ RSpec.describe Filterable::Concern do
         include Filterable::Concerns::Datable
         include Filterable::Concerns::Sortable
         include Filterable::Concerns::Equatable
+        include Filterable::Concerns::Rangeable
       end
     end
 
     it 'maps a bare attribute onto its own column' do
-      model.datable(:value_date).sortable(:value_date).equatable(:reference)
+      model.datable(:value_date).sortable(:value_date).equatable(:reference).rangeable(:gross_amount_cents)
 
       expect(model.datable_attribute_names[:value_date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:value_date]).to eq(:value_date)
       expect(model.equatable_attribute_names[:reference]).to eq(:reference)
+      expect(model.rangeable_attribute_names[:gross_amount_cents]).to eq(:gross_amount_cents)
     end
 
     it 'aliases a public name to a column through a hash' do
       model.datable(date: :value_date).sortable(amount: :gross_amount_cents).equatable(ref: :reference)
+           .rangeable(amount: :gross_amount_cents)
 
       expect(model.datable_attribute_names[:date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:amount]).to eq(:gross_amount_cents)
       expect(model.equatable_attribute_names[:ref]).to eq(:reference)
+      expect(model.rangeable_attribute_names[:amount]).to eq(:gross_amount_cents)
     end
 
     it 'ignores an unsupported declaration' do
-      model.datable(42).sortable(nil).equatable(3.14)
+      model.datable(42).sortable(nil).equatable(3.14).rangeable(Object.new)
 
       expect(model.datable_attribute_names).to be_empty
       expect(model.sortable_attribute_names).to be_empty
       expect(model.equatable_attribute_names).to be_empty
+      expect(model.rangeable_attribute_names).to be_empty
     end
   end
 
@@ -277,6 +374,17 @@ RSpec.describe Filterable::Concern do
       Class.new(MovementDetail) { datable booked: :booking_date }
 
       expect(MovementDetail.datable_attribute_names).not_to have_key(:booked)
+    end
+  end
+
+  describe Filterable::Rangeable, '.parse' do
+    it 'passes an already-numeric value through untouched' do
+      expect(described_class.parse(100)).to eq(100)
+      expect(described_class.parse(99.5)).to eq(99.5)
+    end
+
+    it 'parses a zero-padded integer string in base ten, not octal' do
+      expect(described_class.parse('010')).to eq(10)
     end
   end
 
