@@ -252,6 +252,131 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe 'association targets' do
+    let!(:bank)    { Bank.create!(name: 'BNP') }
+    let!(:main)    { Account.create!(name: 'Main', balance_cents: 1000, opened_on: Date.new(2026, 1, 1), bank: bank) }
+    let!(:savings) { Account.create!(name: 'Savings', balance_cents: 5000) }
+    let!(:main_detail)    { MovementDetail.create!(account: main, reference: 'M-1') }
+    let!(:savings_detail) { MovementDetail.create!(account: savings, reference: 'S-1') }
+
+    it 'filters by equality through a belongs_to and drops rows without it' do
+      result = MovementDetail.filterable(filters: { account_name: 'Main' })
+      expect(result).to contain_exactly(main_detail)
+    end
+
+    it 'filters through a nested association path' do
+      result = MovementDetail.filterable(filters: { bank_name: 'BNP' })
+      expect(result).to contain_exactly(main_detail)
+    end
+
+    it 'applies numeric bounds on the associated column' do
+      result = MovementDetail.filterable(filters: { account_balance: { min: 2000 } })
+      expect(result).to contain_exactly(savings_detail)
+    end
+
+    it 'applies date bounds on the associated column' do
+      result = MovementDetail.filterable(filters: { account_opened: { after: '2025-12-31' } })
+      expect(result).to contain_exactly(main_detail)
+    end
+
+    it 'deduplicates rows when filtering through a collection' do
+      MovementDetail.create!(account: main, reference: 'DUP')
+      MovementDetail.create!(account: main, reference: 'DUP')
+
+      result = Account.filterable(filters: { detail_reference: 'DUP' })
+      expect(result.map(&:id)).to eq([main.id])
+    end
+
+    it 'ignores a declared target walking an unknown association instead of raising' do
+      model = Class.new(MovementDetail) { equatable broken: { nope: :name } }
+      result = nil
+      expect { result = model.filterable(filters: { broken: 'x' }) }.not_to raise_error
+      expect(result.count).to eq(5)
+    end
+
+    it 'ignores a declared target through a polymorphic association instead of raising' do
+      model = Class.new(MovementDetail) { equatable att_name: { attachable: :name } }
+      result = nil
+      expect { result = model.filterable(filters: { att_name: 'x' }) }.not_to raise_error
+      expect(result.count).to eq(5)
+    end
+
+    it 'ignores an ambiguous association target instead of raising' do
+      model = Class.new(MovementDetail) { equatable weird: { account: :name, bank: :name } }
+
+      expect(model.filterable(filters: { weird: 'x' }).count).to eq(5)
+    end
+
+    it 'ignores an association target declared sortable' do
+      model = Class.new(MovementDetail) { sortable acc_name: { account: :name } }
+
+      expect(model.filterable(filters: { sort: '-acc_name' }).count).to eq(5)
+    end
+
+    it 'ignores an association target declared scopable instead of raising' do
+      model = Class.new(MovementDetail) { scopable weird: { account: :name } }
+      result = nil
+      expect { result = model.filterable(filters: { weird: 'x' }) }.not_to raise_error
+      expect(result.count).to eq(5)
+    end
+
+    it 'ignores an association target declared togglable instead of raising' do
+      model = Class.new(MovementDetail) { togglable weird: { account: :name } }
+
+      expect { model.filterable(filters: { weird: 'true' }) }.not_to raise_error
+    end
+
+    it 'filters through a delegated type, guarded by the concrete type column' do
+      x_bank = Bank.create!(id: 4242, name: 'X')
+      x_account = Account.create!(id: 4242, name: 'X')
+      bank_detail = MovementDetail.create!(attachable: x_bank)
+      MovementDetail.create!(attachable: x_account)
+
+      result = MovementDetail.filterable(filters: { attached_bank_name: 'X' })
+      expect(result).to contain_exactly(bank_detail)
+    end
+
+    it 'applies bounds through a delegated type' do
+      rich = Account.create!(name: 'Rich', balance_cents: 9000)
+      rich_detail = MovementDetail.create!(attachable: rich)
+
+      result = MovementDetail.filterable(filters: { attached_balance: { min: 8000 } })
+      expect(result).to contain_exactly(rich_detail)
+    end
+
+    it 'filters through a bare polymorphic belongs_to, without delegated_type' do
+      src = Account.create!(name: 'Src')
+      sourced_detail = MovementDetail.create!(source: src)
+
+      result = MovementDetail.filterable(filters: { source_account_name: 'Src' })
+      expect(result).to contain_exactly(sourced_detail)
+    end
+
+    it 'ignores a delegated-type target with an unknown concrete type instead of raising' do
+      model = Class.new(MovementDetail) { equatable ghost: { attachable: { spaceship: :name } } }
+      result = nil
+      expect { result = model.filterable(filters: { ghost: 'x' }) }.not_to raise_error
+      expect(result.count).to eq(5)
+    end
+
+    it 'ignores a delegated-type target whose type is not a model' do
+      model = Class.new(MovementDetail) { equatable ghost: { attachable: { string: :name } } }
+
+      expect(model.filterable(filters: { ghost: 'x' }).count).to eq(5)
+    end
+
+    it 'reports association-target filters in applied_filters' do
+      report = MovementDetail.applied_filters(filters: { account_name: 'Main' })
+
+      expect(report[:account_name]).to eq('Main')
+    end
+
+    it 'accepts ActionController::Parameters from a controller' do
+      params = ActionController::Parameters.new(filters: { account_name: 'Main' })
+      expect(MovementDetail.filterable(params)).to contain_exactly(main_detail)
+    end
+  end
+
   describe 'scopable' do
     let!(:cheap) { MovementDetail.create!(gross_amount_cents: 100) }
     let!(:mid)   { MovementDetail.create!(gross_amount_cents: 250) }
@@ -700,6 +825,68 @@ RSpec.describe Filterable::Concern do
       expect(validator).not_to be_valid
       expect(validator.errors).to contain_exactly(
         "togglable: 'active' maps to unknown scope 'nonexistent' on BrokenToggle"
+      )
+    end
+
+    it 'is valid for association targets resolving to real columns' do
+      expect(Account.filterable_declarations).to be_valid
+    end
+
+    it 'reports an association target walking an unresolvable path' do
+      stub_const('BrokenPath', Class.new(MovementDetail) { equatable acc: { nonexistent: :name } })
+      validator = BrokenPath.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "equatable: 'acc' walks an unresolvable association path 'nonexistent' on BrokenPath"
+      )
+    end
+
+    it 'reports a polymorphic association target as unresolvable' do
+      stub_const('PolyPath', Class.new(MovementDetail) { equatable att: { attachable: :name } })
+
+      expect(PolyPath.filterable_declarations.errors).to contain_exactly(
+        "equatable: 'att' walks an unresolvable association path 'attachable' on PolyPath"
+      )
+    end
+
+    it 'reports an association target pointing to an unknown column on the target model' do
+      stub_const('BrokenColumn', Class.new(MovementDetail) { equatable acc: { account: :iban } })
+
+      expect(BrokenColumn.filterable_declarations.errors).to contain_exactly(
+        "equatable: 'acc' maps to unknown column 'iban' on Account"
+      )
+    end
+
+    it 'reports an ambiguous association target' do
+      stub_const('Ambiguous', Class.new(MovementDetail) { equatable acc: { account: :name, bank: :name } })
+
+      expect(Ambiguous.filterable_declarations.errors).to contain_exactly(
+        "equatable: 'acc' has an ambiguous association target on Ambiguous"
+      )
+    end
+
+    it 'reports a delegated-type target with an unknown concrete type' do
+      stub_const('GhostType', Class.new(MovementDetail) { equatable g: { attachable: { spaceship: :name } } })
+
+      expect(GhostType.filterable_declarations.errors).to contain_exactly(
+        "equatable: 'g' walks an unresolvable association path 'attachable.spaceship' on GhostType"
+      )
+    end
+
+    it 'reports a delegated-type target pointing to an unknown column on the concrete type' do
+      stub_const('GhostColumn', Class.new(MovementDetail) { equatable g: { attachable: { bank: :iban } } })
+
+      expect(GhostColumn.filterable_declarations.errors).to contain_exactly(
+        "equatable: 'g' maps to unknown column 'iban' on Bank"
+      )
+    end
+
+    it 'reports an association target declared sortable as unsupported' do
+      stub_const('SortPath', Class.new(MovementDetail) { sortable acc: { account: :name } })
+
+      expect(SortPath.filterable_declarations.errors).to contain_exactly(
+        "sortable: 'acc' cannot sort through an association"
       )
     end
 

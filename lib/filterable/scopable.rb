@@ -47,9 +47,10 @@ module Filterable
       sliced = sliced.to_unsafe_h if sliced.respond_to?(:to_unsafe_h)
       sliced.filter_map do |name, raw|
         value = Filterable::ValueNormalization.normalize(raw)
-        next if value.nil? || !scope.respond_to?(declared[name])
+        scope_name = declared[name]
+        next if value.nil? || scope_name.is_a?(Hash) || !scope.respond_to?(scope_name)
 
-        [name, declared[name], value]
+        [name, scope_name, value]
       end
     end
   end

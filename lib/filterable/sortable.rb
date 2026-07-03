@@ -48,7 +48,7 @@ module Filterable
         term = raw.strip
         sign, name = split_direction(term)
         column = scope.sortable_attribute_names[name]
-        [sign, column, term] if column
+        [sign, column, term] if column && !column.is_a?(Hash)
       end
     end
 

@@ -15,8 +15,8 @@ module Filterable
       # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
         entries = Filterable::Datable.accepted(params, scope, :after)
-        entries.reduce(scope) do |sub_scope, (_name, column, _bounds, parsed)|
-          sub_scope.where(scope.arel_table[column].gt(parsed[:after]))
+        entries.reduce(scope) do |sub_scope, (_name, target, _bounds, parsed)|
+          Filterable::Target.narrow(sub_scope, target) { |field| field.gt(parsed[:after]) }
         end
       end
 

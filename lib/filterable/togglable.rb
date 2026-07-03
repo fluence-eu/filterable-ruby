@@ -53,9 +53,10 @@ module Filterable
       sliced = params.slice(*declared.keys)
       sliced = sliced.to_unsafe_h if sliced.respond_to?(:to_unsafe_h)
       sliced.filter_map do |name, raw|
-        next unless toggled_on?(raw) && scope.respond_to?(declared[name])
+        scope_name = declared[name]
+        next unless toggled_on?(raw) && !scope_name.is_a?(Hash) && scope.respond_to?(scope_name)
 
-        [name, declared[name]]
+        [name, scope_name]
       end
     end
 
