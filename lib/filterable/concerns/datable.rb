@@ -16,12 +16,19 @@ module Filterable
       end
 
       class_methods do
-        # The declared datable attributes, mapping each public name to its DB column.
+        # The declared datable attributes, mapping each public name to its DB column,
+        # cloned from the superclass so a subclass starts with its parent's
+        # declarations and can append its own.
         #
         # @api private
         # @return [ActiveSupport::HashWithIndifferentAccess] public name => DB column.
         def datable_attribute_names
-          @datable_attribute_names ||= {}.with_indifferent_access
+          @datable_attribute_names ||=
+            if superclass.respond_to?(:datable_attribute_names)
+              superclass.datable_attribute_names.clone
+            else
+              {}.with_indifferent_access
+            end
         end
 
         # Declares one or more attributes as datable. A bare name maps onto its own

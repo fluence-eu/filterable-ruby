@@ -128,6 +128,27 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe 'inheritance' do
+    it 'inherits the datable and sortable declarations in a subclass' do
+      subclass = Class.new(MovementDetail)
+
+      expect(subclass.datable_attribute_names[:value_date]).to eq(:value_date)
+      expect(subclass.sortable_attribute_names[:value_date]).to eq(:value_date)
+    end
+
+    it 'filters through a subclass with the inherited declarations' do
+      result = Class.new(MovementDetail).filterable(filters: { value_date: { after: '2026-02-01' } })
+
+      expect(result.map(&:id)).to contain_exactly(february.id, march.id)
+    end
+
+    it 'does not leak subclass declarations into the parent' do
+      Class.new(MovementDetail) { datable booked: :booking_date }
+
+      expect(MovementDetail.datable_attribute_names).not_to have_key(:booked)
+    end
+  end
+
   describe Filterable::Datable, '.parse' do
     it 'passes an already-parsed Date or Time through untouched' do
       date = Date.new(2026, 2, 1)
