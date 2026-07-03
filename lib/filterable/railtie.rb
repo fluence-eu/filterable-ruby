@@ -22,6 +22,7 @@ module Filterable
         include Filterable::Concerns::Attachable
         include Filterable::Concerns::Datable
         include Filterable::Concerns::Equatable
+        include Filterable::Concerns::Matchable
         include Filterable::Concerns::Rangeable
         include Filterable::Concerns::Scopable
         include Filterable::Concerns::Sortable

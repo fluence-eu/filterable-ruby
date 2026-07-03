@@ -252,6 +252,110 @@ RSpec.describe Filterable::Concern do
     end
   end
 
+  describe 'matchable' do
+    let!(:invoice) { MovementDetail.create!(reference: 'INV-100') }
+    let!(:refund)  { MovementDetail.create!(reference: 'REF-INV') }
+    let!(:percent) { MovementDetail.create!(reference: '100%') }
+    let!(:under)   { MovementDetail.create!(reference: 'A_B') }
+    let!(:cross)   { MovementDetail.create!(reference: 'AXB') }
+
+    it 'matches the start of the column' do
+      result = MovementDetail.filterable(filters: { reference: { starts_with: 'INV' } })
+      expect(result).to contain_exactly(invoice)
+    end
+
+    it 'matches the end of the column' do
+      result = MovementDetail.filterable(filters: { reference: { ends_with: 'INV' } })
+      expect(result).to contain_exactly(refund)
+    end
+
+    it 'matches anywhere in the column' do
+      result = MovementDetail.filterable(filters: { reference: { contains: 'INV' } })
+      expect(result).to contain_exactly(invoice, refund)
+    end
+
+    it 'matches case insensitively by default' do
+      result = MovementDetail.filterable(filters: { reference: { starts_with: 'inv' } })
+      expect(result).to contain_exactly(invoice)
+    end
+
+    it 'escapes percent signs in the term' do
+      expect(MovementDetail.filterable(filters: { reference: { contains: '%' } })).to contain_exactly(percent)
+      expect(MovementDetail.filterable(filters: { reference: { contains: '0%' } })).to contain_exactly(percent)
+    end
+
+    it 'escapes underscores in the term' do
+      result = MovementDetail.filterable(filters: { reference: { contains: 'A_B' } })
+      expect(result).to contain_exactly(under)
+    end
+
+    it 'combines several match keys on the same attribute' do
+      result = MovementDetail.filterable(filters: { reference: { starts_with: 'INV', contains: '100' } })
+      expect(result).to contain_exactly(invoice)
+    end
+
+    it 'ignores blank and non-string terms and non-hash values' do
+      cases = [{ reference: { contains: '' } }, { reference: { contains: ['a'] } }, { matched_account: 'INV' }]
+      cases.each do |filters|
+        result = nil
+        expect { result = MovementDetail.filterable(filters: filters) }.not_to raise_error
+        expect(result.count).to eq(8)
+      end
+    end
+
+    it 'renders ILIKE by default and LIKE when declared case sensitive' do
+      sensitive_model = Class.new(MovementDetail) { matchable code: :reference, case_sensitive: true }
+      insensitive = MovementDetail.filterable(filters: { reference: { starts_with: 'INV' } })
+      sensitive = sensitive_model.filterable(filters: { code: { starts_with: 'INV' } })
+      visitor = Arel::Visitors::PostgreSQL.new(MovementDetail.connection)
+
+      expect(visitor.compile(insensitive.arel.ast)).to include('ILIKE')
+      expect(visitor.compile(sensitive.arel.ast)).not_to include('ILIKE')
+    end
+
+    it 'matches case sensitively end to end when the adapter enforces it' do
+      model = Class.new(MovementDetail) { matchable code: :reference, case_sensitive: true }
+      MovementDetail.connection.execute('PRAGMA case_sensitive_like = ON')
+
+      expect(model.filterable(filters: { code: { starts_with: 'inv' } }).count).to eq(0)
+      expect(model.filterable(filters: { code: { starts_with: 'INV' } }).map(&:id)).to eq([invoice.id])
+    ensure
+      MovementDetail.connection.execute('PRAGMA case_sensitive_like = OFF')
+    end
+
+    it 'matches through an association target' do
+      detail = MovementDetail.create!(account: Account.create!(name: 'Main'))
+
+      result = MovementDetail.filterable(filters: { matched_account: { contains: 'ai' } })
+      expect(result).to contain_exactly(detail)
+    end
+
+    it 'does not mutate the declaration hash' do
+      declaration = { code: :reference, case_sensitive: true }
+      Class.new(MovementDetail).matchable(declaration)
+
+      expect(declaration).to eq(code: :reference, case_sensitive: true)
+    end
+
+    it 'inherits the matchable declarations in a subclass' do
+      result = Class.new(MovementDetail).filterable(filters: { reference: { starts_with: 'INV' } })
+      expect(result.map(&:id)).to eq([invoice.id])
+    end
+
+    it 'reports the accepted terms in applied_filters' do
+      report = MovementDetail.applied_filters(
+        filters: { reference: { starts_with: 'IN', ends_with: '0', contains: 'V', until: '' } }
+      )
+
+      expect(report[:reference]).to eq('starts_with' => 'IN', 'ends_with' => '0', 'contains' => 'V')
+    end
+
+    it 'accepts ActionController::Parameters from a controller' do
+      params = ActionController::Parameters.new(filters: { reference: { starts_with: 'INV' } })
+      expect(MovementDetail.filterable(params)).to contain_exactly(invoice)
+    end
+  end
+
   describe 'association targets' do
     let!(:bank)    { Bank.create!(name: 'BNP') }
     let!(:main)    { Account.create!(name: 'Main', balance_cents: 1000, opened_on: Date.new(2026, 1, 1), bank: bank) }
@@ -898,6 +1002,16 @@ RSpec.describe Filterable::Concern do
       )
     end
 
+    it 'reports a matchable declaration pointing to an unknown column' do
+      stub_const('BrokenMatch', Class.new(MovementDetail) { matchable :referemce })
+      validator = BrokenMatch.filterable_declarations
+
+      expect(validator).not_to be_valid
+      expect(validator.errors).to contain_exactly(
+        "matchable: 'referemce' maps to unknown column 'referemce' on BrokenMatch"
+      )
+    end
+
     it 'is valid for association targets resolving to real columns' do
       expect(Account.filterable_declarations).to be_valid
     end
@@ -978,12 +1092,13 @@ RSpec.describe Filterable::Concern do
         include Filterable::Concerns::Scopable
         include Filterable::Concerns::Togglable
         include Filterable::Concerns::Attachable
+        include Filterable::Concerns::Matchable
       end
     end
 
     it 'maps a bare attribute onto its own column' do
       model.datable(:value_date).sortable(:value_date).equatable(:reference).rangeable(:gross_amount_cents)
-           .scopable(:cheaper_than).togglable(:priced).attachable(:document)
+           .scopable(:cheaper_than).togglable(:priced).attachable(:document).matchable(:reference)
 
       expect(model.datable_attribute_names[:value_date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:value_date]).to eq(:value_date)
@@ -992,12 +1107,14 @@ RSpec.describe Filterable::Concern do
       expect(model.scopable_scope_names[:cheaper_than]).to eq(:cheaper_than)
       expect(model.togglable_scope_names[:priced]).to eq(:priced)
       expect(model.attachable_attachment_names[:document]).to eq(:document)
+      expect(model.matchable_attribute_names[:reference]).to eq(:reference)
+      expect(model.matchable_case_sensitive).to be_empty
     end
 
     it 'aliases a public name to a column through a hash' do
       model.datable(date: :value_date).sortable(amount: :gross_amount_cents).equatable(ref: :reference)
            .rangeable(amount: :gross_amount_cents).scopable(max_price: :cheaper_than).togglable(has_price: :priced)
-           .attachable(file: :document)
+           .attachable(file: :document).matchable(code: :reference, case_sensitive: true)
 
       expect(model.datable_attribute_names[:date]).to eq(:value_date)
       expect(model.sortable_attribute_names[:amount]).to eq(:gross_amount_cents)
@@ -1006,11 +1123,13 @@ RSpec.describe Filterable::Concern do
       expect(model.scopable_scope_names[:max_price]).to eq(:cheaper_than)
       expect(model.togglable_scope_names[:has_price]).to eq(:priced)
       expect(model.attachable_attachment_names[:file]).to eq(:document)
+      expect(model.matchable_attribute_names[:code]).to eq(:reference)
+      expect(model.matchable_case_sensitive[:code]).to be(true)
     end
 
     it 'ignores an unsupported declaration' do
       model.datable(42).sortable(nil).equatable(3.14).rangeable(Object.new).scopable(42).togglable(nil)
-           .attachable(1.5)
+           .attachable(1.5).matchable(42)
 
       expect(model.datable_attribute_names).to be_empty
       expect(model.sortable_attribute_names).to be_empty
@@ -1019,6 +1138,7 @@ RSpec.describe Filterable::Concern do
       expect(model.scopable_scope_names).to be_empty
       expect(model.togglable_scope_names).to be_empty
       expect(model.attachable_attachment_names).to be_empty
+      expect(model.matchable_attribute_names).to be_empty
     end
   end
 

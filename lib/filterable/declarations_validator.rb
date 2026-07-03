@@ -13,7 +13,7 @@ module Filterable
     # The column-backed declaration DSLs to check, each exposing
     # +<kind>_attribute_names+ on the model. A kind the model does not respond
     # to is skipped.
-    KINDS = %i[datable sortable equatable rangeable].freeze
+    KINDS = %i[datable sortable equatable rangeable matchable].freeze
 
     # The scope-backed declaration DSLs to check, each exposing
     # +<kind>_scope_names+ on the model. A kind the model does not respond to
