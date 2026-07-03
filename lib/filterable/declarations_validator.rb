@@ -20,6 +20,9 @@ module Filterable
     # is skipped.
     SCOPE_KINDS = %i[scopable togglable].freeze
 
+    # Builds a validator over one model's declarations.
+    #
+    # @api public
     # @param model [Class] an ActiveRecord model using the declaration DSLs.
     def initialize(model)
       @model = model
