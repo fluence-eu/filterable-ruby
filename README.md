@@ -124,6 +124,32 @@ unparseable or blank bounds are dropped silently. A column may be both
 `equatable` and `rangeable`: a scalar value filters by equality, a `min`/`max`
 hash by range.
 
+### Partial match (`Matchable`)
+
+Each declared matchable attribute accepts these nested keys under
+`filters[<attribute>]`:
+
+| Key           | SQL              | Cost                                     |
+|---------------|------------------|------------------------------------------|
+| `starts_with` | `LIKE 'term%'`   | sargable — can use a B-tree index        |
+| `ends_with`   | `LIKE '%term'`   | full scan                                |
+| `contains`    | `LIKE '%term%'`  | full scan                                |
+
+```ruby
+matchable :reference
+matchable :code, case_sensitive: true
+
+MovementDetail.filterable(filters: { reference: { starts_with: 'INV' } })
+```
+
+The term is always LIKE-escaped — a user `%` or `_` matches literally — and
+the wildcard placement is fixed by the key: the caller never controls the
+pattern. Matching is case insensitive by default (`ILIKE` on PostgreSQL);
+`case_sensitive: true` opts a declaration into sensitivity (`case_sensitive`
+is a reserved word, never a public name — effective sensitivity on SQLite
+also depends on `PRAGMA case_sensitive_like`). Blank or non-string terms are
+dropped silently.
+
 ### Scope filters (`Scopable` / `Togglable`)
 
 Existing model scopes can be exposed as filters — the scope name is fixed at
