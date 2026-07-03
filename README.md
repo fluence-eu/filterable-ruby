@@ -2,12 +2,13 @@
 
 Declarative, **whitelisted** query filtering and ordering for ActiveRecord.
 
-A model declares which columns are *datable*, *sortable*, *equatable* and *rangeable*.
-`filterable(params)` then folds a chain of small, composable filters over the
-relation, reading from nested request params and touching **only** the columns
-the model explicitly exposed. An unknown attribute, a malformed date, or an
-undeclared sort term narrows nothing — it never raises and never leaks an
-arbitrary column into the query.
+A model declares which columns are *datable*, *sortable*, *equatable* and
+*rangeable*, and which scopes are *scopable* or *togglable*. `filterable(params)`
+then folds a chain of small, composable filters over the relation, reading from
+nested request params and touching **only** the columns and scopes the model
+explicitly exposed. An unknown attribute, a malformed date, or an undeclared
+sort term narrows nothing — it never raises and never leaks an arbitrary column
+into the query.
 
 Requires **Ruby ≥ 3.2** and **ActiveRecord ≥ 7.1**. No dependency on ActionPack:
 `ActionController::Parameters` are supported by duck-typing (`to_unsafe_h`).
@@ -38,10 +39,15 @@ a model just declares its whitelisted columns:
 
 ```ruby
 class MovementDetail < ApplicationRecord
+  scope :priced,       -> { where.not(gross_amount_cents: nil) }
+  scope :cheaper_than, ->(cents) { where(gross_amount_cents: ...cents) }
+
   datable   :value_date, :booking_date
   sortable  :value_date, :gross_amount_cents
   equatable :reference
   rangeable :gross_amount_cents
+  scopable  :cheaper_than
+  togglable :priced
 end
 ```
 
@@ -118,6 +124,24 @@ unparseable or blank bounds are dropped silently. A column may be both
 `equatable` and `rangeable`: a scalar value filters by equality, a `min`/`max`
 hash by range.
 
+### Scope filters (`Scopable` / `Togglable`)
+
+Existing model scopes can be exposed as filters — the scope name is fixed at
+declaration time, never derived from the params:
+
+```ruby
+scopable  :cheaper_than   # filters[cheaper_than]=250 → .cheaper_than(250)
+togglable :priced         # filters[priced]=true      → .priced
+```
+
+A `scopable` scope receives the normalized value (blank or non-scalar values
+are dropped). A `togglable` scope takes no argument and is applied only on a
+strict true value — `true`, `'true'`, `1` or `'1'`; anything else, including
+`'false'`, `'0'` and arbitrary strings, narrows nothing (checkbox semantics).
+A declared name whose scope does not exist, or a scope not returning a
+relation, narrows nothing either — the [declarations validator](#validating-declarations)
+reports the former.
+
 ### Ordering (`Sortable`)
 
 `filters[sort]` is a comma-separated list of declared attributes, each optionally
@@ -131,15 +155,17 @@ Undeclared attributes are ignored.
 
 ### Public names vs. DB columns
 
-All the DSLs accept a hash to expose a public name that differs from the column:
+All the DSLs accept a hash to expose a public name that differs from the column
+or scope:
 
 ```ruby
-datable   date:   :value_date
-sortable  amount: :gross_amount_cents
-equatable ref:    :reference
-rangeable amount: :gross_amount_cents
+datable   date:      :value_date
+sortable  amount:    :gross_amount_cents
+equatable ref:       :reference
+rangeable amount:    :gross_amount_cents
+scopable  max_price: :cheaper_than
 
-# filters[date][after] / filters[sort]=-amount / filters[ref] / filters[amount][min]
+# filters[date][after] / filters[sort]=-amount / filters[ref] / filters[amount][min] / filters[max_price]
 ```
 
 ### Custom filters
@@ -190,9 +216,11 @@ instead, every model exposes a validator over its declarations:
 expect(MovementDetail.filterable_declarations).to be_valid
 ```
 
-`filterable_declarations.errors` lists every declaration whose column does not
-exist, e.g. `datable: 'date' maps to unknown column 'value_dat' on MovementDetail`.
-The engine never calls it: production behavior stays a silent no-op.
+`filterable_declarations.errors` lists every declaration whose column or scope
+does not exist, e.g. `datable: 'date' maps to unknown column 'value_dat' on
+MovementDetail` or `scopable: 'max_price' maps to unknown scope 'cheapest' on
+MovementDetail`. The engine never calls it: production behavior stays a silent
+no-op.
 
 ---
 
@@ -207,11 +235,13 @@ include Filterable::Concern
 include Filterable::Concerns::Datable
 include Filterable::Concerns::Equatable
 include Filterable::Concerns::Rangeable
+include Filterable::Concerns::Scopable
 include Filterable::Concerns::Sortable
+include Filterable::Concerns::Togglable
 ```
 
 So every model gains `filterable` and the `datable` / `sortable` / `equatable` /
-`rangeable` DSL with no boilerplate. A model that declares no columns keeps an empty whitelist, so
+`rangeable` / `scopable` / `togglable` DSL with no boilerplate. A model that declares no columns keeps an empty whitelist, so
 `filterable` is a harmless pass-through that returns `all`.
 
 ## Outside Rails
@@ -225,18 +255,21 @@ class MovementDetail < ActiveRecord::Base
   include Filterable::Concerns::Datable
   include Filterable::Concerns::Equatable
   include Filterable::Concerns::Rangeable
+  include Filterable::Concerns::Scopable
   include Filterable::Concerns::Sortable
+  include Filterable::Concerns::Togglable
 
   datable   :value_date
   sortable  :value_date
   equatable :reference
   rangeable :gross_amount_cents
+  scopable  :cheaper_than
+  togglable :priced
 end
 ```
 
 > **Include order matters.** `Filterable::Concern` provides `add_filter`, which
-> the `Datable`/`Equatable`/`Rangeable`/`Sortable` concerns call at include
-> time — so it must come first.
+> the declaration concerns call at include time — so it must come first.
 
 ---
 
@@ -244,13 +277,14 @@ end
 
 - `Filterable::Concern` keeps a per-class list of filters (cloned down the
   inheritance chain) and `filterable` reduces the relation through them.
-- `Filterable::Concerns::Datable` / `Equatable` / `Rangeable` / `Sortable` are
-  thin `ActiveSupport::Concern` mixins: they register the concrete filters and
-  add the `datable` / `equatable` / `rangeable` / `sortable` declaration DSL on
-  top of the engine.
+- `Filterable::Concerns::Datable` / `Equatable` / `Rangeable` / `Scopable` /
+  `Sortable` / `Togglable` are thin `ActiveSupport::Concern` mixins: they
+  register the concrete filters and add the matching declaration DSL on top of
+  the engine.
 - The concrete date filters live under `Filterable::Datable::{After,Before,Range,Since}`,
   the equality filter is `Filterable::Equatable`, the numeric bound filters are
-  `Filterable::Rangeable::{Minimum,Maximum}` and the ordering filter is
+  `Filterable::Rangeable::{Minimum,Maximum}`, the scope filters are
+  `Filterable::Scopable` / `Filterable::Togglable` and the ordering filter is
   `Filterable::Sortable`.
 
 ---
