@@ -5,8 +5,8 @@ require_relative 'lib/filterable/version'
 Gem::Specification.new do |spec|
   spec.name = 'filterable'
   spec.version = Filterable::VERSION
-  spec.authors = ['Fluence']
-  spec.email = ['dev@fluence.eu']
+  spec.authors = ['Jonathan PHILIPPE']
+  spec.email = ['jphilippe@fluence.eu']
 
   spec.summary = 'Declarative, whitelisted query filtering and ordering for ActiveRecord'
   spec.description = 'Models declare which columns are datable and sortable, then ' \
