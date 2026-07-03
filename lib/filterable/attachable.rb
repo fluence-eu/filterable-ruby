@@ -15,6 +15,14 @@ module Filterable
     # The explicit values that flip +present+ to its unattached side.
     FALSE_VALUES = [false, 0, '0', 'false'].freeze
 
+    # The symbolic +type+ shortcuts, each expanded lazily at query time against
+    # ActiveStorage's configured content-type lists — never frozen at boot, and
+    # only ever called once the model proved it has real attachments, so the
+    # gem still loads without ActiveStorage.
+    TYPE_SHORTCUTS = {
+      'image' => -> { ActiveStorage.variable_content_types | ActiveStorage.web_image_content_types }
+    }.freeze
+
     module_function
 
     # Narrows the scope from each accepted attachment key.
@@ -72,10 +80,35 @@ module Filterable
     def entries(name, attachment, bounds)
       [
         [:present, presence_value(bounds)],
-        [:type, Filterable::ValueNormalization.normalize(bounds[:type])],
+        [:type, content_types(bounds[:type])],
         [:min_size, Filterable::Rangeable.parse(bounds[:min_size])],
         [:max_size, Filterable::Rangeable.parse(bounds[:max_size])]
       ].filter_map { |key, value| [name, attachment, key, value, bounds[key]] unless value.nil? }
+    end
+
+    # The normalized +type+ value, with symbolic shortcuts expanded. A real
+    # content type always carries a slash, so a known shortcut name is
+    # unambiguous; an unknown literal stays a plain equality that matches
+    # nothing, never a silent no-op.
+    #
+    # @api private
+    # @param raw [Object] the raw +type+ value.
+    # @return [String, Array, nil] the usable content type(s), or nil.
+    def content_types(raw)
+      Filterable::ValueNormalization.normalize(expand_types(raw))
+    end
+
+    # Expands every known shortcut in a raw +type+ value, leaving everything
+    # else untouched.
+    #
+    # @api private
+    # @param raw [Object] the raw +type+ value, scalar or array.
+    # @return [Object] the value with shortcuts replaced by content-type lists.
+    def expand_types(raw)
+      return raw.flat_map { |value| expand_types(value) } if raw.is_a?(Array)
+
+      shortcut = TYPE_SHORTCUTS[raw.to_s]
+      shortcut ? shortcut.call : raw
     end
 
     # How a +present+ key reads: +:attached+ on a strict true or bare key,

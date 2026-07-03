@@ -154,6 +154,32 @@ RSpec.describe 'ActiveStorage integration' do
       expect(result).to contain_exactly(pdf_contract, png_contract)
     end
 
+    it 'expands the image shortcut against the configured content types' do
+      [:image, 'image'].each do |shortcut|
+        result = Contract.filterable(filters: { document: { type: shortcut } })
+
+        expect(result).to contain_exactly(png_contract)
+      end
+    end
+
+    it 'expands the image shortcut inside an array, next to literal types' do
+      result = Contract.filterable(filters: { document: { type: ['image', 'application/pdf'] } })
+
+      expect(result).to contain_exactly(pdf_contract, png_contract)
+    end
+
+    it 'keeps an unknown literal type as an equality that matches nothing' do
+      result = Contract.filterable(filters: { document: { type: 'garbage' } })
+
+      expect(result).to be_empty
+    end
+
+    it 'ignores an unknown symbolic type' do
+      result = Contract.filterable(filters: { document: { type: :video } })
+
+      expect(result).to contain_exactly(pdf_contract, png_contract, bare_contract)
+    end
+
     it 'applies inclusive byte size bounds' do
       attach(pdf_contract, 'annexes', 'text/csv', 100)
       attach(png_contract, 'annexes', 'text/csv', 5000)
