@@ -51,6 +51,15 @@ module Filterable
         filters.reduce(all) { |scope, filter| filter.call(params[:filters], scope) || scope }
       end
 
+      # A validator checking every declaration against the model's columns, meant
+      # for specs — at runtime a typo'd declaration stays a silent no-op by design.
+      #
+      # @api public
+      # @return [Filterable::DeclarationsValidator]
+      def filterable_declarations
+        Filterable::DeclarationsValidator.new(self)
+      end
+
       private
 
       # Whether the value carries indifferent string/symbol access, i.e. an
