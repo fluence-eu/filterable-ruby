@@ -130,14 +130,15 @@ Existing model scopes can be exposed as filters — the scope name is fixed at
 declaration time, never derived from the params:
 
 ```ruby
-scopable  :cheaper_than   # filters[cheaper_than]=250 → .cheaper_than(250)
-togglable :priced         # filters[priced]=true      → .priced
+scopable  :cheaper_than   # filters[cheaper_than]=250      → .cheaper_than(250)
+togglable :priced         # ?filters[priced] or =true / =1 → .priced
 ```
 
 A `scopable` scope receives the normalized value (blank or non-scalar values
-are dropped). A `togglable` scope takes no argument and is applied only on a
-strict true value — `true`, `'true'`, `1` or `'1'`; anything else, including
-`'false'`, `'0'` and arbitrary strings, narrows nothing (checkbox semantics).
+are dropped). A `togglable` scope takes no argument and toggles on a bare key
+(`?filters[priced]`, `filters[priced]=`) or a strict true value (`true`,
+`'true'`, `1`, `'1'`); an explicit false value — `'false'`, `'0'`, what Rails'
+`check_box` hidden field submits — or an arbitrary string narrows nothing.
 A declared name whose scope does not exist, or a scope not returning a
 relation, narrows nothing either — the [declarations validator](#validating-declarations)
 reports the former.

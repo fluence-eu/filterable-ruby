@@ -358,9 +358,15 @@ RSpec.describe Filterable::Concern do
       expect(result).to contain_exactly(january, february, march, cheap, mid)
     end
 
-    it 'ignores a blank value' do
-      result = MovementDetail.filterable(filters: { priced: '' })
-      expect(result).to contain_exactly(january, february, march, cheap, mid)
+    it 'toggles on a bare key carrying a blank value' do
+      ['', '  ', nil].each do |value|
+        expect(MovementDetail.filterable(filters: { priced: value })).to contain_exactly(cheap, mid)
+      end
+    end
+
+    it 'toggles on a bare key from ActionController::Parameters' do
+      params = ActionController::Parameters.new(filters: { priced: nil })
+      expect(MovementDetail.filterable(params).map(&:id)).to contain_exactly(cheap.id, mid.id)
     end
 
     it 'ignores a declared name whose scope does not exist instead of raising' do
@@ -395,6 +401,12 @@ RSpec.describe Filterable::Concern do
 
     it 'reports true in applied_filters' do
       report = MovementDetail.applied_filters(filters: { priced: '1' })
+
+      expect(report[:priced]).to be(true)
+    end
+
+    it 'reports true in applied_filters for a bare key' do
+      report = MovementDetail.applied_filters(filters: { priced: '' })
 
       expect(report[:priced]).to be(true)
     end

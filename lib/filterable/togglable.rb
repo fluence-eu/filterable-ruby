@@ -1,14 +1,15 @@
 # frozen_string_literal: true
 
 module Filterable
-  # Applies a no-argument model scope when +filters[<name>]+ is a strict true
-  # value — checkbox semantics. Only names the model declared +togglable+ are
-  # honored; the scope name is fixed at declaration time, never derived from
-  # the params. Anything but a strict true value (including +'false'+, +'0'+
-  # and arbitrary strings), a missing scope, or a scope not returning a
-  # relation narrows nothing.
+  # Applies a no-argument model scope when +filters[<name>]+ is present as a
+  # bare key (+?filters[priced]+, +filters[priced]=+) or carries a strict true
+  # value. Only names the model declared +togglable+ are honored; the scope
+  # name is fixed at declaration time, never derived from the params. An
+  # explicit false value (+'false'+, +'0'+ — what Rails' +check_box+ hidden
+  # field submits), an arbitrary string, a missing scope, or a scope not
+  # returning a relation narrows nothing.
   module Togglable
-    # The values that switch a toggle on. A strict allowlist, unlike
+    # The explicit values that switch a toggle on. A strict allowlist, unlike
     # +ActiveModel::Type::Boolean+ where any unrecognized string casts to true.
     TRUE_VALUES = [true, 1, '1', 'true'].freeze
 
@@ -39,9 +40,9 @@ module Filterable
       end
     end
 
-    # The declared entries whose value is a strict true and whose scope exists —
-    # the single place deciding whether a toggle applies, so {call} and
-    # {applied} cannot drift.
+    # The declared entries whose key is toggled on and whose scope exists — the
+    # single place deciding whether a toggle applies, so {call} and {applied}
+    # cannot drift.
     #
     # @api private
     # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
@@ -52,9 +53,26 @@ module Filterable
       sliced = params.slice(*declared.keys)
       sliced = sliced.to_unsafe_h if sliced.respond_to?(:to_unsafe_h)
       sliced.filter_map do |name, raw|
-        next unless TRUE_VALUES.include?(raw) && scope.respond_to?(declared[name])
+        next unless toggled_on?(raw) && scope.respond_to?(declared[name])
 
         [name, declared[name]]
+      end
+    end
+
+    # Whether a present key's value switches the toggle on: a bare key (nil or
+    # a blank string) counts as on, everything else must be a strict true.
+    #
+    # @api private
+    # @param value [Object] the raw value under the present key.
+    # @return [Boolean]
+    def toggled_on?(value)
+      case value
+      when nil
+        true
+      when String
+        value.strip.empty? || TRUE_VALUES.include?(value)
+      else
+        TRUE_VALUES.include?(value)
       end
     end
   end
