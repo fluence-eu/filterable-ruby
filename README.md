@@ -121,6 +121,20 @@ end
 
 A filter returning `nil` leaves the scope untouched, so guard clauses are safe.
 
+### Validating declarations
+
+At runtime a typo'd declaration is a silent no-op by design. To catch it in CI
+instead, every model exposes a validator over its declarations:
+
+```ruby
+# in a model spec
+expect(MovementDetail.filterable_declarations).to be_valid
+```
+
+`filterable_declarations.errors` lists every declaration whose column does not
+exist, e.g. `datable: 'date' maps to unknown column 'value_dat' on MovementDetail`.
+The engine never calls it: production behavior stays a silent no-op.
+
 ---
 
 ## Rails integration
