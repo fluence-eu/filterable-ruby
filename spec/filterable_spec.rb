@@ -57,9 +57,30 @@ RSpec.describe Filterable::Concern do
       expect(result).to contain_exactly(january, february, march)
     end
 
+    it 'ignores a scalar where the date bounds are expected instead of raising' do
+      result = nil
+      expect { result = MovementDetail.filterable(filters: { value_date: '2026-02-01' }) }
+        .not_to raise_error
+      expect(result).to contain_exactly(january, february, march)
+    end
+
+    it 'ignores an array where the date bounds are expected instead of raising' do
+      result = nil
+      expect { result = MovementDetail.filterable(filters: { value_date: %w[2026-02-01 2026-03-01] }) }
+        .not_to raise_error
+      expect(result).to contain_exactly(january, february, march)
+    end
+
     it 'accepts ActionController::Parameters from a controller' do
       params = ActionController::Parameters.new(filters: { value_date: { after: '2026-02-01' } })
       expect(MovementDetail.filterable(params)).to contain_exactly(february, march)
+    end
+
+    it 'ignores a scalar in ActionController::Parameters where the date bounds are expected' do
+      params = ActionController::Parameters.new(filters: { value_date: '2026-02-01' })
+      result = nil
+      expect { result = MovementDetail.filterable(params) }.not_to raise_error
+      expect(result).to contain_exactly(january, february, march)
     end
   end
 
