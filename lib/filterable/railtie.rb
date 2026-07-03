@@ -19,6 +19,7 @@ module Filterable
     initializer 'filterable.active_record' do
       ActiveSupport.on_load(:active_record) do
         include Filterable::Concern
+        include Filterable::Concerns::Attachable
         include Filterable::Concerns::Datable
         include Filterable::Concerns::Equatable
         include Filterable::Concerns::Rangeable
