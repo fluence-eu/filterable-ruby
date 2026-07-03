@@ -217,6 +217,21 @@ an unknown type narrows nothing and is reported by the validator. The reverse,
 concrete direction (`Message` → `{ entry: :created_at }` through its
 `has_one`) is an ordinary path.
 
+#### ActiveStorage
+
+The associations `has_one_attached` / `has_many_attached` generate are
+concrete from the owner's side, so they are ordinary paths — no polymorphic
+hop needed:
+
+```ruby
+class Contract < ApplicationRecord
+  has_one_attached :document
+
+  equatable document_type:  { document_blob: :content_type }
+  datable   document_since: { document_attachment: :created_at }
+end
+```
+
 ### Default filters
 
 A model can declare default filter params, applied whenever the request does

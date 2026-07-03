@@ -38,31 +38,8 @@ ActiveRecord::Base.establish_connection(adapter: 'sqlite3', database: ':memory:'
 # and the datable/sortable DSL with no explicit `include`.
 Filterable::Railtie.instance.run_initializers
 
-ActiveRecord::Schema.verbose = false
-ActiveRecord::Schema.define do
-  create_table :banks, force: true do |t|
-    t.string :name
-  end
-
-  create_table :accounts, force: true do |t|
-    t.string :name
-    t.integer :balance_cents
-    t.date :opened_on
-    t.integer :bank_id
-  end
-
-  create_table :movement_details, force: true do |t|
-    t.date :value_date
-    t.date :booking_date
-    t.integer :gross_amount_cents
-    t.string :reference
-    t.integer :account_id
-    t.string :attachable_type
-    t.integer :attachable_id
-    t.string :source_type
-    t.integer :source_id
-  end
-end
+require_relative 'support/schema'
+FilterableSchema.define
 
 # Note the absence of any `include`: the Railtie auto-included the engine into
 # ActiveRecord::Base, so the model only declares its whitelisted columns.
