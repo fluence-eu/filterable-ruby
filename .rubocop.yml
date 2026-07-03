@@ -23,3 +23,13 @@ Metrics/BlockLength:
   Exclude:
     - 'spec/**/*'
     - 'filterable.gemspec'
+
+# Spec support code is declarative (schema definitions, harness setup): its
+# length tracks the number of tables and columns, not complexity. Production
+# code under lib/ stays fully covered.
+Metrics/AbcSize:
+  Exclude:
+    - 'spec/**/*'
+Metrics/MethodLength:
+  Exclude:
+    - 'spec/**/*'
