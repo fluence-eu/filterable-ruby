@@ -11,7 +11,7 @@ module Filterable
   class DeclarationsValidator
     # The declaration DSLs to check, each exposing +<kind>_attribute_names+ on
     # the model. A kind the model does not respond to is skipped.
-    KINDS = %i[datable sortable equatable].freeze
+    KINDS = %i[datable sortable equatable rangeable].freeze
 
     # @param model [Class] an ActiveRecord model using the declaration DSLs.
     def initialize(model)

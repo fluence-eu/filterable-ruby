@@ -54,6 +54,7 @@ class MovementDetail < ActiveRecord::Base
   datable :value_date, :booking_date
   sortable :value_date, :gross_amount_cents
   equatable :reference, :gross_amount_cents
+  rangeable :gross_amount_cents
 end
 
 RSpec.configure do |config|
