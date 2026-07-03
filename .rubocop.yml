@@ -14,7 +14,12 @@ Layout/LineLength:
   Exclude:
     - 'filterable.gemspec'
 
+# `class_methods do` is the ActiveSupport::Concern DSL wrapping the whole
+# class-level API: its length tracks the number of public methods, not the
+# complexity of any of them (each method stays covered by the other metrics).
 Metrics/BlockLength:
+  AllowedMethods:
+    - class_methods
   Exclude:
     - 'spec/**/*'
     - 'filterable.gemspec'

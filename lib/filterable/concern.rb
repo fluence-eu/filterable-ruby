@@ -11,10 +11,7 @@ module Filterable
   module Concern
     extend ActiveSupport::Concern
 
-    # The class-level API, mixed in by ActiveSupport::Concern exactly like the
-    # +class_methods do+ block it replaces (kept as a named module so it can
-    # grow without hitting block-length limits).
-    module ClassMethods
+    class_methods do
       # The filters registered on this class, cloned from the superclass so a
       # subclass starts with its parent's filters and can append its own.
       #
