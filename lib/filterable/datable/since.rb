@@ -14,11 +14,9 @@ module Filterable
       # @param scope [ActiveRecord::Relation] the relation being filtered.
       # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
-        Filterable::Datable.columns(params, scope).reduce(scope) do |sub_scope, (column, bounds)|
-          since = Filterable::Datable.parse(bounds[:since])
-          next sub_scope unless since
-
-          sub_scope.where(scope.arel_table[column].lteq(since))
+        entries = Filterable::Datable.accepted(params, scope, :since)
+        entries.reduce(scope) do |sub_scope, (_name, column, _bounds, parsed)|
+          sub_scope.where(scope.arel_table[column].lteq(parsed[:since]))
         end
       end
 
@@ -29,8 +27,9 @@ module Filterable
       # @param scope [ActiveRecord::Relation] the relation being filtered.
       # @return [Hash{Symbol, String => Hash}] public name => accepted +since+ bound.
       def applied(params, scope)
-        Filterable::Datable.bounds(params, scope).each_with_object({}) do |(name, bounds), report|
-          report[name] = { since: bounds[:since] } if Filterable::Datable.parse(bounds[:since])
+        entries = Filterable::Datable.accepted(params, scope, :since)
+        entries.each_with_object({}) do |(name, _column, bounds, _parsed), report|
+          report[name] = bounds.slice(:since)
         end
       end
     end

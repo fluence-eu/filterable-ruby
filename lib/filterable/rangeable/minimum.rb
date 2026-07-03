@@ -14,11 +14,9 @@ module Filterable
       # @param scope [ActiveRecord::Relation] the relation being filtered.
       # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
-        Filterable::Rangeable.columns(params, scope).reduce(scope) do |sub_scope, (column, bounds)|
-          min = Filterable::Rangeable.parse(bounds[:min])
-          next sub_scope unless min
-
-          sub_scope.where(scope.arel_table[column].gteq(min))
+        entries = Filterable::Rangeable.accepted(params, scope, :min)
+        entries.reduce(scope) do |sub_scope, (_name, column, _bounds, parsed)|
+          sub_scope.where(scope.arel_table[column].gteq(parsed[:min]))
         end
       end
 
@@ -29,8 +27,9 @@ module Filterable
       # @param scope [ActiveRecord::Relation] the relation being filtered.
       # @return [Hash{Symbol, String => Hash}] public name => accepted +min+ bound.
       def applied(params, scope)
-        Filterable::Rangeable.bounds(params, scope).each_with_object({}) do |(name, bounds), report|
-          report[name] = { min: bounds[:min] } if Filterable::Rangeable.parse(bounds[:min])
+        entries = Filterable::Rangeable.accepted(params, scope, :min)
+        entries.each_with_object({}) do |(name, _column, bounds, _parsed), report|
+          report[name] = bounds.slice(:min)
         end
       end
     end

@@ -17,10 +17,7 @@ module Filterable
     # @return [ActiveRecord::Relation] the narrowed relation.
     def call(params, scope)
       declared = scope.equatable_attribute_names
-      values(params, scope).reduce(scope) do |sub_scope, (name, raw)|
-        value = normalize(raw)
-        next sub_scope if value.nil?
-
+      accepted(params, scope).reduce(scope) do |sub_scope, (name, value)|
         sub_scope.where(declared[name] => value)
       end
     end
@@ -32,9 +29,21 @@ module Filterable
     # @param scope [ActiveRecord::Relation] the relation being filtered.
     # @return [Hash{Symbol, String => Object}] public name => accepted value.
     def applied(params, scope)
-      values(params, scope).each_with_object({}) do |(name, raw), report|
+      accepted(params, scope).to_h
+    end
+
+    # The entries of {values} whose value normalizes to something usable — the
+    # single place deciding whether an equality applies, so {call} and {applied}
+    # cannot drift.
+    #
+    # @api private
+    # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
+    # @param scope [ActiveRecord::Relation] the relation being filtered.
+    # @return [Array<Array(Object, Object)>] public name and normalized value.
+    def accepted(params, scope)
+      values(params, scope).filter_map do |name, raw|
         value = normalize(raw)
-        report[name] = value unless value.nil?
+        [name, value] unless value.nil?
       end
     end
 

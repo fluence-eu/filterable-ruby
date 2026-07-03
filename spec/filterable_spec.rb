@@ -287,6 +287,12 @@ RSpec.describe Filterable::Concern do
       expect(report[:value_date]).to eq('after' => '2026-01-15', 'before' => '2026-03-01')
     end
 
+    it 'reports an accepted since bound with its raw value' do
+      report = MovementDetail.applied_filters(filters: { value_date: { since: '2026-02-10' } })
+
+      expect(report[:value_date]).to eq('since' => '2026-02-10')
+    end
+
     it 'omits an unparseable date bound' do
       report = MovementDetail.applied_filters(filters: { value_date: { since: 'not-a-date' } })
 

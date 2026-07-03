@@ -39,15 +39,24 @@ module Filterable
       sliced.select { |_name, value| value.is_a?(Hash) }
     end
 
-    # Same whitelist as {bounds}, with each public name resolved to its DB
-    # column, so a filter only ever touches columns the model opted in.
+    # The entries of {bounds} whose given keys all parse, each public name
+    # resolved to its DB column — the single place deciding whether a bound
+    # applies, so a filter's +call+ and +applied+ cannot drift.
     #
     # @api private
     # @param params [Hash, ActionController::Parameters] the nested +filters+ params.
     # @param scope [ActiveRecord::Relation] the relation being filtered.
-    # @return [Hash{Symbol, String => Hash}] db_column => raw bounds for that attribute.
-    def columns(params, scope)
-      bounds(params, scope).transform_keys { |name| scope.datable_attribute_names[name] }
+    # @param keys [Array<Symbol>] the bound keys the filter reads, all required.
+    # @return [Array<Array(Object, Object, Hash, Hash)>] public name, DB column,
+    #   raw bounds and parsed bounds for each accepted attribute.
+    def accepted(params, scope, *keys)
+      declared = scope.datable_attribute_names
+      bounds(params, scope).filter_map do |name, bounds_hash|
+        parsed = keys.index_with { |key| parse(bounds_hash[key]) }
+        next if parsed.value?(nil)
+
+        [name, declared[name], bounds_hash, parsed]
+      end
     end
   end
 end
