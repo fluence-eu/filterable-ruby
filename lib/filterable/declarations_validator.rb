@@ -144,8 +144,7 @@ module Filterable
       return [] unless @model.respond_to?(reader)
 
       @model.public_send(reader).filter_map do |public_name, attachment|
-        next if [:"#{attachment}_attachment", :"#{attachment}_attachments"]
-                .any? { |name| @model.reflect_on_association(name) }
+        next if @model.respond_to?(:reflect_on_attachment) && @model.reflect_on_attachment(attachment)
 
         "#{kind}: '#{public_name}' maps to unknown attachment '#{attachment}' on #{@model.name}"
       end

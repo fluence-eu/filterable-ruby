@@ -981,6 +981,20 @@ RSpec.describe Filterable::Concern do
 
       expect(model.applied_filters(filters: { document: { present: 'true' } })).to be_empty
     end
+
+    it 'does not mistake an ordinary association named like an attachment' do
+      stub_const('FakeAttach', Class.new(MovementDetail) do
+        belongs_to :document_attachment, class_name: 'Account', optional: true
+        attachable :document
+      end)
+
+      result = nil
+      expect { result = FakeAttach.filterable(filters: { document: { present: 'true' } }) }.not_to raise_error
+      expect(result.count).to eq(3)
+      expect(FakeAttach.filterable_declarations.errors).to contain_exactly(
+        "attachable: 'document' maps to unknown attachment 'document' on FakeAttach"
+      )
+    end
   end
 
   describe Filterable::ValueNormalization, '.normalize' do

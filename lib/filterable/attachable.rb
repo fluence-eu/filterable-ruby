@@ -123,7 +123,8 @@ module Filterable
       return sub_scope.where.missing(association) if value == :missing
 
       attached = sub_scope.where.associated(association)
-      sub_scope.klass.reflect_on_association(association).collection? ? attached.distinct : attached
+      collection = sub_scope.klass.reflect_on_attachment(attachment).macro == :has_many_attached
+      collection ? attached.distinct : attached
     end
 
     # Narrows on the blob content type through the generated blob association.
@@ -163,15 +164,25 @@ module Filterable
       end
     end
 
-    # The generated attachment association for a name, singular or plural.
+    # The generated attachment association for a name, singular or plural
+    # according to the attachment's macro. Legitimacy comes from ActiveStorage's
+    # own reflection registry, never from the shape of an association name — an
+    # ordinary association that happens to be called +<name>_attachment+ does
+    # not qualify.
     #
     # @api private
     # @param scope [ActiveRecord::Relation] the relation being filtered.
     # @param attachment [Object] the attachment name.
-    # @return [Symbol, nil] the association name, or nil when absent.
+    # @return [Symbol, nil] the association name, or nil when the model has no
+    #   such attachment.
     def attachment_association(scope, attachment)
-      [:"#{attachment}_attachment", :"#{attachment}_attachments"]
-        .find { |name| scope.klass.reflect_on_association(name) }
+      klass = scope.klass
+      return unless klass.respond_to?(:reflect_on_attachment)
+
+      reflection = klass.reflect_on_attachment(attachment)
+      return unless reflection
+
+      reflection.macro == :has_one_attached ? :"#{attachment}_attachment" : :"#{attachment}_attachments"
     end
 
     # The association-target hash pointing at a blob column.
