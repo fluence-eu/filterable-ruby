@@ -326,6 +326,45 @@ RSpec.describe Filterable::Concern do
       expect { model.filterable(filters: { weird: 'true' }) }.not_to raise_error
     end
 
+    it 'filters through a delegated type, guarded by the concrete type column' do
+      x_bank = Bank.create!(id: 4242, name: 'X')
+      x_account = Account.create!(id: 4242, name: 'X')
+      bank_detail = MovementDetail.create!(attachable: x_bank)
+      MovementDetail.create!(attachable: x_account)
+
+      result = MovementDetail.filterable(filters: { attached_bank_name: 'X' })
+      expect(result).to contain_exactly(bank_detail)
+    end
+
+    it 'applies bounds through a delegated type' do
+      rich = Account.create!(name: 'Rich', balance_cents: 9000)
+      rich_detail = MovementDetail.create!(attachable: rich)
+
+      result = MovementDetail.filterable(filters: { attached_balance: { min: 8000 } })
+      expect(result).to contain_exactly(rich_detail)
+    end
+
+    it 'filters through a bare polymorphic belongs_to, without delegated_type' do
+      src = Account.create!(name: 'Src')
+      sourced_detail = MovementDetail.create!(source: src)
+
+      result = MovementDetail.filterable(filters: { source_account_name: 'Src' })
+      expect(result).to contain_exactly(sourced_detail)
+    end
+
+    it 'ignores a delegated-type target with an unknown concrete type instead of raising' do
+      model = Class.new(MovementDetail) { equatable ghost: { attachable: { spaceship: :name } } }
+      result = nil
+      expect { result = model.filterable(filters: { ghost: 'x' }) }.not_to raise_error
+      expect(result.count).to eq(5)
+    end
+
+    it 'ignores a delegated-type target whose type is not a model' do
+      model = Class.new(MovementDetail) { equatable ghost: { attachable: { string: :name } } }
+
+      expect(model.filterable(filters: { ghost: 'x' }).count).to eq(5)
+    end
+
     it 'reports association-target filters in applied_filters' do
       report = MovementDetail.applied_filters(filters: { account_name: 'Main' })
 
@@ -824,6 +863,22 @@ RSpec.describe Filterable::Concern do
 
       expect(Ambiguous.filterable_declarations.errors).to contain_exactly(
         "equatable: 'acc' has an ambiguous association target on Ambiguous"
+      )
+    end
+
+    it 'reports a delegated-type target with an unknown concrete type' do
+      stub_const('GhostType', Class.new(MovementDetail) { equatable g: { attachable: { spaceship: :name } } })
+
+      expect(GhostType.filterable_declarations.errors).to contain_exactly(
+        "equatable: 'g' walks an unresolvable association path 'attachable.spaceship' on GhostType"
+      )
+    end
+
+    it 'reports a delegated-type target pointing to an unknown column on the concrete type' do
+      stub_const('GhostColumn', Class.new(MovementDetail) { equatable g: { attachable: { bank: :iban } } })
+
+      expect(GhostColumn.filterable_declarations.errors).to contain_exactly(
+        "equatable: 'g' maps to unknown column 'iban' on Bank"
       )
     end
 

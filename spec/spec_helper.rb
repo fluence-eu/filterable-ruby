@@ -59,6 +59,8 @@ ActiveRecord::Schema.define do
     t.integer :account_id
     t.string :attachable_type
     t.integer :attachable_id
+    t.string :source_type
+    t.integer :source_id
   end
 end
 
@@ -77,7 +79,8 @@ end
 
 class MovementDetail < ActiveRecord::Base
   belongs_to :account, optional: true
-  belongs_to :attachable, polymorphic: true, optional: true
+  belongs_to :source, polymorphic: true, optional: true
+  delegated_type :attachable, types: %w[Bank Account], optional: true
 
   scope :priced,        -> { where.not(gross_amount_cents: nil) }
   scope :cheaper_than,  ->(cents) { where(gross_amount_cents: ...cents) }
@@ -86,8 +89,12 @@ class MovementDetail < ActiveRecord::Base
   datable :value_date, :booking_date, account_opened: { account: :opened_on }
   sortable :value_date, :gross_amount_cents
   equatable :reference, :gross_amount_cents,
-            account_name: { account: :name }, bank_name: { account: { bank: :name } }
-  rangeable :gross_amount_cents, account_balance: { account: :balance_cents }
+            account_name: { account: :name }, bank_name: { account: { bank: :name } },
+            attached_bank_name: { attachable: { bank: :name } },
+            source_account_name: { source: { account: :name } }
+  rangeable :gross_amount_cents,
+            account_balance: { account: :balance_cents },
+            attached_balance: { attachable: { account: :balance_cents } }
   togglable :priced
   scopable :cheaper_than
 end

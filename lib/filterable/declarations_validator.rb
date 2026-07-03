@@ -90,8 +90,8 @@ module Filterable
         return "#{kind}: '#{public_name}' has an ambiguous association target on #{@model.name}"
       end
 
-      klass, = Filterable::Target.resolve(@model, path)
-      return column_error(kind, public_name, klass, column) if klass
+      resolution = Filterable::Target.resolve(@model, path)
+      return column_error(kind, public_name, resolution[:klass], column) if resolution
 
       "#{kind}: '#{public_name}' walks an unresolvable association path '#{path.join(".")}' on #{@model.name}"
     end
