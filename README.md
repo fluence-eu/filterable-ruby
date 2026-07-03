@@ -293,6 +293,23 @@ end
 
 A filter returning `nil` leaves the scope untouched, so guard clauses are safe.
 
+A filter whose callable accepts a **third argument** also receives the call
+context — an optional hash handed to `filterable` after the params — so it can
+depend on the caller without global state:
+
+```ruby
+add_filter do |filters, scope, context|
+  scope.where(author_id: context[:user_id]) if filters[:mine] && context[:user_id]
+end
+
+Post.filterable(params, user_id: current_user.id)
+```
+
+The context is passed as given and defaults to `{}`; two-argument filters —
+the built-in ones included — never see it, and an `applied` accepting a third
+argument receives it the same way. A filter its context cannot satisfy narrows
+nothing.
+
 ### Applied filters introspection
 
 Since an unknown or malformed filter is a silent no-op, `applied_filters` is how
