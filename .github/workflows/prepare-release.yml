@@ -14,9 +14,8 @@ on:
 
 jobs:
   prepare:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-prepare-release.yml@v5
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-prepare-release.yml@v6
     with:
-      gem_specs: filterable
       bump: ${{ inputs.bump }}
     secrets:
       FLUENCE_RELEASE_BOT_PRIVATE_KEY: ${{ secrets.FLUENCE_RELEASE_BOT_PRIVATE_KEY }}

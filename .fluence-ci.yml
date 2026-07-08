@@ -1,0 +1,7 @@
+# Per-project options for the fluence-eu/ci-workflows@v6 reusables.
+# Full key schema: https://github.com/fluence-eu/ci-workflows#per-project-configuration-fluence-ciyml
+codequality:
+  paths: lib
+
+release:
+  gem_specs: filterable
