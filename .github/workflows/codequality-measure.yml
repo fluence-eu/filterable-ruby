@@ -6,9 +6,7 @@ on:
 
 jobs:
   measure:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-codequality-measure.yml@v5
-    with:
-      paths: 'lib'
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-codequality-measure.yml@v6
     permissions:
       contents: read
       packages: read
