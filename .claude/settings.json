@@ -1,0 +1,13 @@
+{
+  "extraKnownMarketplaces": {
+    "fluence": {
+      "source": {
+        "source": "url",
+        "url": "git@github.com:fluence-eu/claude-config.git"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "graphiti@fluence": true
+  }
+}
