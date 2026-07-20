@@ -2,7 +2,7 @@
   "extraKnownMarketplaces": {
     "fluence": {
       "source": {
-        "source": "url",
+        "source": "git",
         "url": "git@github.com:fluence-eu/claude-config.git"
       }
     }
