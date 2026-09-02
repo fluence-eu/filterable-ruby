@@ -90,6 +90,32 @@ MovementDetail.filterable(
 Unparseable values are dropped silently (the filter is a no-op), so a bad query
 param can never raise.
 
+#### Datetime columns: a bare day names the whole day
+
+On a column holding an **instant** (`t.datetime`), a bound given as a bare day
+(`2026-03-01`) names that day **whole**, both edges included. Read as an instant
+it would mean the day's midnight, and would drop every row recorded during the
+day it names:
+
+```ruby
+# quoted_at is a datetime column; rows at 09:00 and at 17:30 on 2026-03-01
+MovementDetail.filterable(filters: { quoted_at: { since: '2026-03-01' } })
+# => both rows, not just a midnight one
+
+MovementDetail.filterable(filters: { quoted_at: { after: '2026-03-01' } })
+# => neither: the day is excluded whole, the first instant kept is the next midnight
+```
+
+A bound carrying an **hour** asks about an instant and is honoured to the second:
+
+```ruby
+MovementDetail.filterable(filters: { quoted_at: { since: '2026-03-01T12:00:00Z' } })
+# => the 09:00 row only
+```
+
+Days are bounded at midnight in `Time.zone` when the application sets one, and
+in the system zone otherwise. On a `t.date` column nothing changes.
+
 ### Equality filters (`Equatable`)
 
 Each declared equatable attribute reads `filters[<attribute>]` directly: a

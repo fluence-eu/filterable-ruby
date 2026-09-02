@@ -26,6 +26,7 @@ module FilterableSchema
       create_table :movement_details, force: true do |t|
         t.date :value_date
         t.date :booking_date
+        t.datetime :quoted_at
         t.integer :gross_amount_cents
         t.string :reference
         t.integer :account_id
