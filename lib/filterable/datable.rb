@@ -5,67 +5,51 @@ module Filterable
   module Datable
     module_function
 
-    # Coerce a raw filter value into a Date/Time, or nil when it cannot be parsed,
-    # so a malformed query param narrows nothing instead of raising.
+    # Coerce a raw filter value into the bound it names: a Date when it names a
+    # whole day, a Time when it names an instant, or nil when it cannot be
+    # parsed, so a malformed query param narrows nothing instead of raising.
     #
     # @api private
     # @param value [Date, Time, String] the raw bound from the params.
-    # @return [Date, Time, nil] the parsed value, or nil when unparseable.
+    # @return [Date, Time, nil] the parsed bound, or nil when unparseable.
     def parse(value)
       case value
-      when Date, Time
-        value
-      else
-        begin
-          Time.parse(value.to_s)
-        rescue ArgumentError
-          nil
-        end
+      when DateTime then value.to_time
+      when Time, Date then value
+      else parse_bound(value.to_s)
       end
     end
 
-    BARE_DAY = /\A\d{4}-\d{2}-\d{2}\z/
-
-    def bare_day?(value)
-      case value
-      when nil, DateTime, Time then false
-      when Date then true
-      else value.to_s.match?(BARE_DAY)
-      end
+    def parse_bound(string)
+      parts = Date._parse(string)
+      day = Date.new(parts[:year], parts[:mon], parts[:mday])
+      parts.key?(:hour) ? (Time.zone || Time).parse(string) : day
+    rescue TypeError, ArgumentError
+      nil
     end
 
-    def column_type(scope, target)
-      klass, column =
-        if target.is_a?(Hash)
-          path, name = Filterable::Target.unpack(target)
-          return if name.is_a?(Hash) || path.empty?
-
-          [Filterable::Target.resolve(scope.klass, path)&.[](:klass), name]
-        else
-          [scope.klass, target]
-        end
-
-      klass&.type_for_attribute(column.to_s)&.type
-    end
-
-    def whole_day?(scope, target, value)
-      bare_day?(value) && column_type(scope, target) == :datetime
-    end
-
-    def day_start(value)
-      midnight(to_day(value))
-    end
-
-    def day_end(value)
-      midnight(to_day(value) + 1)
-    end
-
-    def to_day(value)
-      value.is_a?(Date) ? value.to_date : Date.parse(value.to_s)
+    def whole_day?(bound)
+      bound.instance_of?(Date)
     end
 
     def midnight(day)
       Time.zone ? day.in_time_zone : day.to_time
+    end
+
+    def on_or_before(field, bound)
+      whole_day?(bound) ? field.lt(midnight(bound + 1)) : field.lteq(bound)
+    end
+
+    def strictly_before(field, bound)
+      field.lt(whole_day?(bound) ? midnight(bound) : bound)
+    end
+
+    def on_or_after(field, bound)
+      field.gteq(whole_day?(bound) ? midnight(bound) : bound)
+    end
+
+    def strictly_after(field, bound)
+      whole_day?(bound) ? field.gteq(midnight(bound + 1)) : field.gt(bound)
     end
 
     # Whitelist the params to the declared datable attributes, keeping their

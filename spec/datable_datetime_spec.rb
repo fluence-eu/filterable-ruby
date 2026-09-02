@@ -24,6 +24,10 @@ RSpec.describe Filterable::Concerns::Datable, 'on a datetime column' do
       expect(filter(before: '2026-03-02')).to contain_exactly(morning, evening)
     end
 
+    it 'keeps nothing of the day it floors out' do
+      expect(filter(before: '2026-03-01')).to be_empty
+    end
+
     it 'excludes the whole day under an after floor' do
       expect(filter(after: '2026-03-01')).to contain_exactly(next_day)
     end
@@ -45,6 +49,22 @@ RSpec.describe Filterable::Concerns::Datable, 'on a datetime column' do
     it 'cuts inside the day on a range' do
       expect(filter(from: '2026-03-01T12:00:00Z', to: '2026-03-02T12:00:00Z'))
         .to contain_exactly(evening, next_day)
+    end
+  end
+
+  describe 'the day is cut in the application zone' do
+    let!(:paris_next_day) { MovementDetail.create!(quoted_at: Time.utc(2026, 3, 1, 23, 30)) }
+
+    around do |example|
+      Time.use_zone('Europe/Paris') { example.run }
+    end
+
+    it 'leaves out an instant that already belongs to the next day there' do
+      expect(filter(since: '2026-03-01')).to contain_exactly(morning, evening)
+    end
+
+    it 'keeps it under the day it belongs to there' do
+      expect(filter(from: '2026-03-02', to: '2026-03-02')).to contain_exactly(next_day, paris_next_day)
     end
   end
 

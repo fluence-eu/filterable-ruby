@@ -15,13 +15,8 @@ module Filterable
       # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
         entries = Filterable::Datable.accepted(params, scope, :after)
-        entries.reduce(scope) do |sub_scope, (_name, target, bounds, parsed)|
-          if Filterable::Datable.whole_day?(sub_scope, target, bounds[:after])
-            edge = Filterable::Datable.day_end(bounds[:after])
-            Filterable::Target.narrow(sub_scope, target) { |field| field.gteq(edge) }
-          else
-            Filterable::Target.narrow(sub_scope, target) { |field| field.gt(parsed[:after]) }
-          end
+        entries.reduce(scope) do |sub_scope, (_name, target, _bounds, parsed)|
+          Filterable::Target.narrow(sub_scope, target) { |field| Filterable::Datable.strictly_after(field, parsed[:after]) }
         end
       end
 

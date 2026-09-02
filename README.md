@@ -113,8 +113,9 @@ MovementDetail.filterable(filters: { quoted_at: { since: '2026-03-01T12:00:00Z' 
 # => the 09:00 row only
 ```
 
-Days are bounded at midnight in `Time.zone` when the application sets one, and
-in the system zone otherwise. On a `t.date` column nothing changes.
+Which day an instant belongs to is decided in `Time.zone` when the application
+sets one, and in the system zone otherwise, so the same bound answers the same
+way whatever zone the server runs in. On a `t.date` column nothing changes.
 
 ### Equality filters (`Equatable`)
 

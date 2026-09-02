@@ -16,24 +16,12 @@ module Filterable
       # @return [ActiveRecord::Relation] the narrowed relation.
       def call(params, scope)
         entries = Filterable::Datable.accepted(params, scope, :from, :to)
-        entries.reduce(scope) do |sub_scope, (_name, target, bounds, parsed)|
-          floor = floor_for(sub_scope, target, bounds[:from], parsed[:from])
+        entries.reduce(scope) do |sub_scope, (_name, target, _bounds, parsed)|
           Filterable::Target.narrow(sub_scope, target) do |field|
-            field.gteq(floor).and(ceiling_for(field, sub_scope, target, bounds[:to], parsed[:to]))
+            Filterable::Datable.on_or_after(field, parsed[:from])
+                               .and(Filterable::Datable.on_or_before(field, parsed[:to]))
           end
         end
-      end
-
-      def floor_for(scope, target, raw, parsed)
-        return parsed unless Filterable::Datable.whole_day?(scope, target, raw)
-
-        Filterable::Datable.day_start(raw)
-      end
-
-      def ceiling_for(field, scope, target, raw, parsed)
-        return field.lteq(parsed) unless Filterable::Datable.whole_day?(scope, target, raw)
-
-        field.lt(Filterable::Datable.day_end(raw))
       end
 
       # The bounds {call} would apply, keyed by public name, with their raw values.
