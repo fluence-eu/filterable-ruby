@@ -5,23 +5,51 @@ module Filterable
   module Datable
     module_function
 
-    # Coerce a raw filter value into a Date/Time, or nil when it cannot be parsed,
-    # so a malformed query param narrows nothing instead of raising.
+    # Coerce a raw filter value into the bound it names: a Date when it names a
+    # whole day, a Time when it names an instant, or nil when it cannot be
+    # parsed, so a malformed query param narrows nothing instead of raising.
     #
     # @api private
     # @param value [Date, Time, String] the raw bound from the params.
-    # @return [Date, Time, nil] the parsed value, or nil when unparseable.
+    # @return [Date, Time, nil] the parsed bound, or nil when unparseable.
     def parse(value)
       case value
-      when Date, Time
-        value
-      else
-        begin
-          Time.parse(value.to_s)
-        rescue ArgumentError
-          nil
-        end
+      when DateTime then value.to_time
+      when Time, Date then value
+      else parse_bound(value.to_s)
       end
+    end
+
+    def parse_bound(string)
+      parts = Date._parse(string)
+      day = Date.new(parts[:year], parts[:mon], parts[:mday])
+      parts.key?(:hour) ? (Time.zone || Time).parse(string) : day
+    rescue TypeError, ArgumentError
+      nil
+    end
+
+    def whole_day?(bound)
+      bound.instance_of?(Date)
+    end
+
+    def midnight(day)
+      Time.zone ? day.in_time_zone : day.to_time
+    end
+
+    def on_or_before(field, bound)
+      whole_day?(bound) ? field.lt(midnight(bound + 1)) : field.lteq(bound)
+    end
+
+    def strictly_before(field, bound)
+      field.lt(whole_day?(bound) ? midnight(bound) : bound)
+    end
+
+    def on_or_after(field, bound)
+      field.gteq(whole_day?(bound) ? midnight(bound) : bound)
+    end
+
+    def strictly_after(field, bound)
+      whole_day?(bound) ? field.gteq(midnight(bound + 1)) : field.gt(bound)
     end
 
     # Whitelist the params to the declared datable attributes, keeping their

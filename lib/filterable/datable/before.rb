@@ -16,7 +16,7 @@ module Filterable
       def call(params, scope)
         entries = Filterable::Datable.accepted(params, scope, :before)
         entries.reduce(scope) do |sub_scope, (_name, target, _bounds, parsed)|
-          Filterable::Target.narrow(sub_scope, target) { |field| field.lt(parsed[:before]) }
+          Filterable::Target.narrow(sub_scope, target) { |field| Filterable::Datable.strictly_before(field, parsed[:before]) }
         end
       end
 

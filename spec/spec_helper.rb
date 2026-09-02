@@ -63,7 +63,7 @@ class MovementDetail < ActiveRecord::Base
   scope :cheaper_than,  ->(cents) { where(gross_amount_cents: ...cents) }
   scope :costlier_than, ->(cents) { where(gross_amount_cents: cents..) }
 
-  datable :value_date, :booking_date, account_opened: { account: :opened_on }
+  datable :value_date, :booking_date, :quoted_at, account_opened: { account: :opened_on }
   sortable :value_date, :gross_amount_cents
   equatable :reference, :gross_amount_cents,
             account_name: { account: :name }, bank_name: { account: { bank: :name } },

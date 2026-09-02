@@ -18,7 +18,8 @@ module Filterable
         entries = Filterable::Datable.accepted(params, scope, :from, :to)
         entries.reduce(scope) do |sub_scope, (_name, target, _bounds, parsed)|
           Filterable::Target.narrow(sub_scope, target) do |field|
-            field.gteq(parsed[:from]).and(field.lteq(parsed[:to]))
+            Filterable::Datable.on_or_after(field, parsed[:from])
+                               .and(Filterable::Datable.on_or_before(field, parsed[:to]))
           end
         end
       end
