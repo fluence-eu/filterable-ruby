@@ -26,13 +26,6 @@ module Filterable
 
     BARE_DAY = /\A\d{4}-\d{2}-\d{2}\z/
 
-    # Whether a raw bound names a day and no hour. +DateTime+ is checked ahead of
-    # +Date+ because it inherits from it, so an instant would otherwise be taken
-    # for a bare day and widened to the whole of it.
-    #
-    # @api private
-    # @param value [Date, Time, String] the raw bound from the params.
-    # @return [Boolean]
     def bare_day?(value)
       case value
       when nil, DateTime, Time then false
@@ -41,12 +34,6 @@ module Filterable
       end
     end
 
-    # The column type a declared target resolves to, on the model it belongs to.
-    #
-    # @api private
-    # @param scope [ActiveRecord::Relation] the relation being filtered.
-    # @param target [Symbol, String, Hash] the declared target.
-    # @return [Symbol, nil] e.g. +:date+ or +:datetime+; nil when unresolvable.
     def column_type(scope, target)
       klass, column =
         if target.is_a?(Hash)
@@ -61,47 +48,22 @@ module Filterable
       klass&.type_for_attribute(column.to_s)&.type
     end
 
-    # Whether a bound should be read as naming a whole day: a bare day asked of a
-    # column that holds an instant. On a date column, or for a bound carrying an
-    # hour, the comparison stays exactly what it was.
-    #
-    # @api private
-    # @param scope [ActiveRecord::Relation] the relation being filtered.
-    # @param target [Symbol, String, Hash] the declared target.
-    # @param value [Date, Time, String] the raw bound from the params.
-    # @return [Boolean]
     def whole_day?(scope, target, value)
       bare_day?(value) && column_type(scope, target) == :datetime
     end
 
-    # The first instant of the day a value names.
-    #
-    # @api private
-    # @return [Time, ActiveSupport::TimeWithZone]
     def day_start(value)
       midnight(to_day(value))
     end
 
-    # The first instant of the day after the one a value names — the exclusive
-    # edge of that day. Built from the next day rather than by adding 24 hours,
-    # which a DST change makes wrong.
-    #
-    # @api private
-    # @return [Time, ActiveSupport::TimeWithZone]
     def day_end(value)
       midnight(to_day(value) + 1)
     end
 
-    # @api private
-    # @return [Date]
     def to_day(value)
       value.is_a?(Date) ? value.to_date : Date.parse(value.to_s)
     end
 
-    # Midnight opening a day, in the application zone when there is one.
-    #
-    # @api private
-    # @return [Time, ActiveSupport::TimeWithZone]
     def midnight(day)
       Time.zone ? day.in_time_zone : day.to_time
     end

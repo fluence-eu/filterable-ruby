@@ -24,22 +24,12 @@ module Filterable
         end
       end
 
-      # The inclusive floor: the day's first instant when +from+ names a whole day,
-      # the parsed bound otherwise.
-      #
-      # @api private
-      # @return [Date, Time]
       def floor_for(scope, target, raw, parsed)
         return parsed unless Filterable::Datable.whole_day?(scope, target, raw)
 
         Filterable::Datable.day_start(raw)
       end
 
-      # The inclusive ceiling: a whole day is admitted up to the next midnight,
-      # excluded, so every instant of the day it names is kept.
-      #
-      # @api private
-      # @return [Arel::Nodes::Node]
       def ceiling_for(field, scope, target, raw, parsed)
         return field.lteq(parsed) unless Filterable::Datable.whole_day?(scope, target, raw)
 

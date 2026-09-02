@@ -2,9 +2,6 @@
 
 require 'spec_helper'
 
-# A datable column holding an instant is still asked about in days: a consumer sending
-# `since=2026-03-01` means that day, not the midnight opening it. Read as an instant,
-# such a bound dropped every record of the day it named but a midnight one.
 RSpec.describe Filterable::Concerns::Datable, 'on a datetime column' do
   let!(:morning) { MovementDetail.create!(quoted_at: Time.utc(2026, 3, 1, 9, 0)) }
   let!(:evening) { MovementDetail.create!(quoted_at: Time.utc(2026, 3, 1, 17, 30)) }
