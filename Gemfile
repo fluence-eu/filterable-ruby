@@ -12,10 +12,8 @@ gem 'rspec', '~> 3.0'
 
 # Curated dev/CI tooling (rubocop, reek, flog, flay, simplecov, undercover,
 # yard, yardstick, …) with the pins the fluence-eu/ci-workflows reusables
-# expect. Bump with `bundle update fluence-ci-tools`.
-source 'https://rubygems.pkg.github.com/fluence-eu' do
-  gem 'fluence-ci-tools', require: false
-end
+# expect. Bump with `bundle update guardian-ci`.
+gem 'guardian-ci', require: false
 
 # Test harness only (not runtime deps): in-memory DB, ActionController::Parameters
 # for the duck-typed params path, railties to exercise the Railtie auto-include,
