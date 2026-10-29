@@ -10,7 +10,7 @@ explicitly exposed. An unknown attribute, a malformed date, or an undeclared
 sort term narrows nothing — it never raises and never leaks an arbitrary column
 into the query.
 
-Requires **Ruby ≥ 3.2** and **ActiveRecord ≥ 7.1**. No dependency on ActionPack:
+Requires **Ruby ≥ 3.3** and **ActiveRecord ≥ 7.1**. No dependency on ActionPack:
 `ActionController::Parameters` are supported by duck-typing (`to_unsafe_h`).
 
 ---
