@@ -13,7 +13,7 @@ Gem::Specification.new do |spec|
                      'filterable(params) folds whitelisted date and sort filters over the relation.'
   spec.homepage = 'https://github.com/fluence-eu/filterable-ruby'
   spec.license = 'MIT'
-  spec.required_ruby_version = '>= 3.2.0'
+  spec.required_ruby_version = '>= 3.3.0'
 
   spec.metadata['allowed_push_host'] = 'https://rubygems.pkg.github.com/fluence-eu'
   spec.metadata['homepage_uri'] = spec.homepage

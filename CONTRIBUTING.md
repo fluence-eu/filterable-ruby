@@ -18,7 +18,7 @@ cd filterable-ruby
 bin/setup
 ```
 
-Requires Ruby 3.2+.
+Requires Ruby 3.3+.
 
 ## Development
 

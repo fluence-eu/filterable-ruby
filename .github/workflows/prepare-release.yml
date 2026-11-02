@@ -14,7 +14,7 @@ on:
 
 jobs:
   prepare:
-    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-prepare-release.yml@v6
+    uses: fluence-eu/ci-workflows/.github/workflows/ruby-gem-prepare-release.yml@v7
     with:
       bump: ${{ inputs.bump }}
     secrets:

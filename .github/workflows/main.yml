@@ -9,12 +9,6 @@ on:
 
 permissions:
   contents: read
-  # fluence-ci-tools lives on GitHub Packages — bundle install needs to read it.
-  packages: read
-
-env:
-  # Authenticate Bundler against the fluence-eu GitHub Packages registry.
-  BUNDLE_RUBYGEMS__PKG__GITHUB__COM: x-access-token:${{ secrets.GITHUB_TOKEN }}
 
 jobs:
   build:
@@ -29,7 +23,6 @@ jobs:
           - '4.0'
           - '3.4'
           - '3.3'
-          - '3.2'
 
     steps:
       - uses: actions/checkout@v7
